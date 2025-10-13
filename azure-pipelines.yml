@@ -26,17 +26,66 @@ steps:
 
   - bash: |
       echo "📋 PR and Repository Information:"
-      echo "  - Build Repository: $(Build.Repository.Name)"
-      echo "  - Build Repository ID: $(Build.Repository.ID)"
-      echo "  - PR Repository: Detected from PR context"
+      echo "  - Pipeline Repository: $(Build.Repository.Name)"
+      echo "  - Source Repository URI: $(System.PullRequest.SourceRepositoryUri)"
+      echo "  - Target Repository URI: $(Build.Repository.Uri)"
       echo "  - PR #: $(System.PullRequest.PullRequestId)"
       echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
       echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
       echo "  - Project: $(System.TeamProject)"
       echo "  - Collection: $(System.CollectionUri)"
-    displayName: 📋 Show PR Context
+      echo ""
+      echo "🔍 Extracting Source Repository Info..."
+      
+      # Extraer el nombre del repositorio del source URI
+      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
+      if [ -n "$SOURCE_REPO_URI" ] && [ "$SOURCE_REPO_URI" != "$(Build.Repository.Uri)" ]; then
+        # El URI tiene formato: https://org@dev.azure.com/org/Project/_git/RepoName
+        SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
+        echo "  - Source Repository Name: $SOURCE_REPO_NAME"
+        
+        # Obtener el Repository ID del source repo via API
+        API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$SOURCE_REPO_NAME?api-version=7.0"
+        echo "  - API URL: $API_URL"
+        
+        # Configurar autenticación
+        if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
+          AUTH_HEADER="Authorization: Basic $(echo -n ":$AZURE_DEVOPS_EXT_PAT" | base64)"
+        else
+          AUTH_HEADER="Authorization: Bearer $(System.AccessToken)"
+        fi
+        
+        # Obtener info del repositorio
+        REPO_INFO=$(curl -s -H "$AUTH_HEADER" "$API_URL")
+        
+        # Verificar si jq está disponible
+        if command -v jq &> /dev/null; then
+          SOURCE_REPO_ID=$(echo "$REPO_INFO" | jq -r '.id // empty')
+        else
+          # Fallback sin jq
+          SOURCE_REPO_ID=$(echo "$REPO_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))" 2>/dev/null || echo "")
+        fi
+        
+        if [ -z "$SOURCE_REPO_ID" ]; then
+          echo "⚠️ Could not get Source Repository ID, using Build Repository"
+          SOURCE_REPO_NAME="$(Build.Repository.Name)"
+          SOURCE_REPO_ID="$(Build.Repository.ID)"
+        else
+          echo "  - Source Repository ID: $SOURCE_REPO_ID"
+        fi
+        
+        # Exportar como variables para los siguientes pasos
+        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$SOURCE_REPO_NAME"
+        echo "##vso[task.setvariable variable=SOURCE_REPO_ID]$SOURCE_REPO_ID"
+      else
+        echo "  - Using Build Repository as Source (same repo PR)"
+        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$(Build.Repository.Name)"
+        echo "##vso[task.setvariable variable=SOURCE_REPO_ID]$(Build.Repository.ID)"
+      fi
+    displayName: 📋 Detect Source Repository
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - checkout: self
     fetchDepth: "0"
@@ -103,8 +152,8 @@ steps:
       env:
         SYSTEM_COLLECTIONURI: $(System.CollectionUri)
         SYSTEM_TEAMPROJECT: $(System.TeamProject)
-        BUILD_REPOSITORY_ID: $(Build.Repository.ID)
-        BUILD_REPOSITORY_NAME: $(Build.Repository.Name)
+        BUILD_REPOSITORY_ID: $(SOURCE_REPO_ID)
+        BUILD_REPOSITORY_NAME: $(SOURCE_REPO_NAME)
         SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
         SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
         SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
@@ -129,7 +178,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: post-pr-comment.sh
-      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.ID)" "$(System.PullRequest.PullRequestId)"'
+      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(SOURCE_REPO_ID)" "$(System.PullRequest.PullRequestId)"'
       displayName: 💬 Post Summary Comment
       env:
         AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
@@ -137,7 +186,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: post-recommendations.sh
-      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.ID)" "$(System.PullRequest.PullRequestId)"'
+      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(SOURCE_REPO_ID)" "$(System.PullRequest.PullRequestId)"'
       displayName: 💬 Post Individual Recommendations
       env:
         AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
