@@ -86,11 +86,15 @@ echo "  - Content-Type: application/json"
 echo "  - Accept: application/json"
 echo "  - URL: $FULL_URL"
 
+# Separar la salida de curl: JSON va al archivo, debug va a un log separado
 curl -v \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  "$FULL_URL" > "$OUTPUT_FILE" 2>&1 | tee /tmp/curl_debug.log
+  "$FULL_URL" \
+  -o "$OUTPUT_FILE" \
+  -w "HTTP_CODE: %{http_code}\nTOTAL_TIME: %{time_total}\n" \
+  2> /tmp/curl_debug.log
 
 CURL_EXIT_CODE=$?
 echo "🔍 Curl terminó con código: $CURL_EXIT_CODE"

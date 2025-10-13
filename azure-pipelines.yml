@@ -20,6 +20,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
+  - group: "GitHub Copilot CLI"
   - name: DIFF_OUTPUT
     value: "$(Build.ArtifactStagingDirectory)/pr-diff.txt"
 
@@ -99,7 +100,7 @@ steps:
         "$(System.PullRequest.SourceRepositoryUri)" \
         "$(System.PullRequest.SourceBranch)" \
         "$(System.PullRequest.TargetBranch)" \
-        "$AZURE_DEVOPS_EXT_PAT" \
+        "$(AZURE_DEVOPS_EXT_PAT)" \
         "$(DIFF_OUTPUT).json"
       
       SCRIPT_EXIT_CODE=$?
