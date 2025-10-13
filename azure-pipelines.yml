@@ -210,12 +210,12 @@ steps:
 
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
-        "test.md" \
+        "$(ANALYSIS_DIR)/source/pr-comment.md" \
         "$ORG" \
         "$PROJECT" \
         "$REPO" \
         "$PR_ID" \
-        "$(AZURE_DEVOPS_EXT_PAT)"     
+        "4U7lrCeDGknOSOhsLPmZmkRqvwCfYA3A5twU2kAHQk9aX8oMVx4XJQQJ99BJACAAAAApTnvlAAASAZDO24He"     
       
     displayName: 💬 Publish Comment on PR
     env:
