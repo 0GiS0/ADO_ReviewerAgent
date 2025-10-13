@@ -70,8 +70,13 @@ echo ""
 echo "🌐 Realizando llamada a la API..."
 
 # Generar el header de autenticación Basic
+echo "🔍 Debug PAT info:"
+echo "  - PAT length: ${#PAT}"
+echo "  - PAT first 4 chars: ${PAT:0:4}..."
+echo "  - PAT last 4 chars: ...${PAT: -4}"
+
 AUTH_HEADER=$(printf "%s:" "$PAT" | base64 -w 0)
-echo "🔑 Header de autenticación generado"
+echo "🔑 Header de autenticación generado (length: ${#AUTH_HEADER})"
 
 # Realizar la llamada a la API
 echo "📡 Ejecutando curl..."
@@ -85,7 +90,7 @@ curl -v \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  "$FULL_URL" > "$OUTPUT_FILE" 2>/tmp/curl_debug.log
+  "$FULL_URL" > "$OUTPUT_FILE" 2>&1 | tee /tmp/curl_debug.log
 
 CURL_EXIT_CODE=$?
 echo "🔍 Curl terminó con código: $CURL_EXIT_CODE"
@@ -104,6 +109,22 @@ echo "📄 Verificando resultado..."
 if [ -f "$OUTPUT_FILE" ]; then
   echo "✅ Archivo de respuesta creado: $OUTPUT_FILE"
   echo "📊 Tamaño: $(du -h "$OUTPUT_FILE" | cut -f1)"
+  
+  # Debug: Mostrar contenido del archivo
+  echo "🔍 Debug - Contenido del archivo de respuesta:"
+  if [ -s "$OUTPUT_FILE" ]; then
+    echo "--- INICIO CONTENIDO ---"
+    cat "$OUTPUT_FILE"
+    echo "--- FIN CONTENIDO ---"
+  else
+    echo "⚠️  ARCHIVO VACÍO (0 bytes)"
+    echo "📋 Debug de curl completo:"
+    if [ -f /tmp/curl_debug.log ]; then
+      cat /tmp/curl_debug.log
+    else
+      echo "No se encontró log de debug de curl"
+    fi
+  fi
   
   # Verificar si es JSON válido
   if command -v jq &> /dev/null; then
