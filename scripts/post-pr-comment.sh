@@ -25,6 +25,8 @@ echo "📁 Project encoded: $PROJECT_ENCODED"
 
 API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads?api-version=7.1"
 
+echo "🔗 API URL: $API_URL"
+
 COMMENT_CONTENT=$(cat "$COMMENT_FILE")
 ESCAPED_CONTENT=$(printf '%s' "$COMMENT_CONTENT" | \
     sed 's/\\/\\\\/g' | \
