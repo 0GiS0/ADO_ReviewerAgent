@@ -36,20 +36,23 @@ steps:
       
       # Obtener la URI del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      echo "Repositorio fuente: $SOURCE_REPO_URI"
-      
-      # Insertar el PAT en la URL
-      # Convertir https://user@domain.com/path a https://PAT@domain.com/path
-      if [[ "$SOURCE_REPO_URI" == *"@"* ]]; then
-        # Si ya tiene un usuario, reemplazarlo con el PAT
-        AUTH_URL=$(echo "$SOURCE_REPO_URI" | sed "s|https://[^@]*@|https://$(AZURE_DEVOPS_EXT_PAT)@|")
-      else
-        # Si no tiene usuario, agregar el PAT
-        AUTH_URL=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://$(AZURE_DEVOPS_EXT_PAT)@|")
-      fi
-      
-      echo "Clonando con autenticación..."
-      git clone "$AUTH_URL" source-repo
+      # Obtener la ORG de la URI
+      ORG=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $3}')
+      echo "  - ORG: $ORG"
+      #Obtener el proyecto de la URI
+      PROJECT=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $4}')
+      echo "  - PROJECT: $PROJECT"
+      #Obtener el repositorio de la URI
+      REPO=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $5}')
+      echo "  - REPO: $REPO"
+
+      # montar de nuevo la URL con el PAT de AZURE_DEVOPS_EXT_PAT:
+      AUTHENTICATED_REPO_URI="https://$(AZURE_DEVOPS_EXT_PAT)@$ORG/$PROJECT/_git/$REPO"
+      echo "  - AUTHENTICATED_REPO_URI: $AUTHENTICATED_REPO_URI"
+
+      # Clonar el repositorio en el directorio source-repo
+      git clone "$AUTHENTICATED_REPO_URI" source-repo || { echo "❌ ERROR: Falló el comando git clone"; exit 1; }
+
 
     displayName: 📥 Clonar Repositorio Fuente
     env:
