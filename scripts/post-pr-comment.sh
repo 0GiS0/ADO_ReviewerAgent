@@ -53,15 +53,16 @@ cat "$PAYLOAD_FILE"
 echo "📊 Payload size: $(wc -c < "$PAYLOAD_FILE") bytes"
 
 
-AUTH_HEADER=$(printf "%s:" "$PAT" | base64)
+if base64 --help 2>&1 | grep -q "wrap"; then
+    PAT_BASE64=$(echo -n ":${PAT}" | base64 -w 0)
+else
+    PAT_BASE64=$(echo -n ":${PAT}" | base64 | tr -d '\n')
+fi
 
 HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-  --connect-timeout 30 \
-  --max-time 60 \
   -X POST \
-  -H "Authorization: Basic $AUTH_HEADER" \
+  -H "Authorization: Basic $PAT_BASE64" \
   -H "Content-Type: application/json" \
-  -H "Accept: application/json" \
   -d @"$PAYLOAD_FILE" \
   "$API_URL")
 

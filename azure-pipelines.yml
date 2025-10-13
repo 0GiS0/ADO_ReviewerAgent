@@ -215,7 +215,7 @@ steps:
         "$PROJECT" \
         "$REPO" \
         "$PR_ID" \
-        "4U7lrCeDGknOSOhsLPmZmkRqvwCfYA3A5twU2kAHQk9aX8oMVx4XJQQJ99BJACAAAAApTnvlAAASAZDO24He"     
+        "$(AZURE_DEVOPS_EXT_PAT)"     
       
     displayName: 💬 Publish Comment on PR
     env:
