@@ -78,7 +78,7 @@ steps:
       # HARDCODED values exactly as used locally (except PAT)
       ORGANIZATION="returngisorg"
       PROJECT="GitHub Copilot CLI"
-      REPOSITORY="ReviewerAgent"
+      REPOSITORY="Demo"
       PR_ID="113"
 
       PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
