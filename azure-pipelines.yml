@@ -66,6 +66,8 @@ steps:
       env:
         SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
         SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
+        SYSTEM_PULLREQUEST_SOURCECOMMITID: $(System.PullRequest.SourceCommitId)
+        SYSTEM_PULLREQUEST_TARGETCOMMITID: $(System.PullRequest.TargetCommitId)
         BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
 
   - template: templates/run-script.yml
@@ -76,6 +78,8 @@ steps:
         SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
         SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
         SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+        SYSTEM_PULLREQUEST_SOURCECOMMITID: $(System.PullRequest.SourceCommitId)
+        SYSTEM_PULLREQUEST_TARGETCOMMITID: $(System.PullRequest.TargetCommitId)
         BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
         REVIEW_OUTPUT: $(REVIEW_OUTPUT)
 

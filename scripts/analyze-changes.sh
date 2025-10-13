@@ -13,6 +13,8 @@ fi
 TARGET_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
 SOURCE_BRANCH="${SYSTEM_PULLREQUEST_SOURCEBRANCH#refs/heads/}"
 PR_ID="$SYSTEM_PULLREQUEST_PULLREQUESTID"
+SOURCE_COMMIT_ID="${SYSTEM_PULLREQUEST_SOURCECOMMITID}"
+TARGET_COMMIT_ID="${SYSTEM_PULLREQUEST_TARGETCOMMITID}"
 
 # Validar que las variables existen
 if [ -z "$TARGET_BRANCH" ] || [ -z "$SOURCE_BRANCH" ] || [ -z "$PR_ID" ]; then
@@ -27,10 +29,12 @@ echo "📋 PR Information:"
 echo "  - PR #$PR_ID"
 echo "  - Source: $SOURCE_BRANCH"
 echo "  - Target: $TARGET_BRANCH"
-
-# Actualizar referencias remotas
-echo "📡 Fetching target branch..."
-git fetch origin "$TARGET_BRANCH" --depth=50 2>&1 || echo "Could not fetch $TARGET_BRANCH"
+if [ -n "$SOURCE_COMMIT_ID" ]; then
+    echo "  - Source Commit: $SOURCE_COMMIT_ID"
+fi
+if [ -n "$TARGET_COMMIT_ID" ]; then
+    echo "  - Target Commit: $TARGET_COMMIT_ID"
+fi
 
 # Obtener todos los cambios de la PR
 echo "📝 Getting all changes..."
@@ -40,29 +44,28 @@ ALL_CHANGES_FILE="/tmp/pr_all_changes.diff"
 # Azure DevOps hace checkout del merge commit de la PR
 DIFF_METHOD=""
 
-# Método 1: merge-base (más preciso)
-if git merge-base "origin/$TARGET_BRANCH" HEAD > /dev/null 2>&1; then
-    MERGE_BASE=$(git merge-base "origin/$TARGET_BRANCH" HEAD)
-    echo "Using merge-base: $MERGE_BASE"
-    git diff "$MERGE_BASE" HEAD > "$ALL_CHANGES_FILE"
-    CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD | tr '\n' ', ' | sed 's/,$//')
-    FILE_COUNT=$(git diff --name-only "$MERGE_BASE" HEAD | wc -l | tr -d ' ')
-    DIFF_METHOD="merge-base"
-# Método 2: origin/TARGET_BRANCH
-elif git rev-parse "origin/$TARGET_BRANCH" > /dev/null 2>&1; then
-    echo "Using origin/$TARGET_BRANCH...HEAD"
-    git diff "origin/$TARGET_BRANCH"...HEAD > "$ALL_CHANGES_FILE"
-    CHANGED_FILES=$(git diff --name-only "origin/$TARGET_BRANCH"...HEAD | tr '\n' ', ' | sed 's/,$//')
-    FILE_COUNT=$(git diff --name-only "origin/$TARGET_BRANCH"...HEAD | wc -l | tr -d ' ')
-    DIFF_METHOD="three-dot"
-# Método 3: HEAD^1 (padre del merge commit)
+# Método 1: usar commit IDs específicos (funciona incluso con forks/otros repos)
+if [ -n "$TARGET_COMMIT_ID" ] && [ -n "$SOURCE_COMMIT_ID" ]; then
+    echo "Using commit IDs: $TARGET_COMMIT_ID..$SOURCE_COMMIT_ID"
+    if git diff "$TARGET_COMMIT_ID" "$SOURCE_COMMIT_ID" > "$ALL_CHANGES_FILE" 2>/dev/null; then
+        CHANGED_FILES=$(git diff --name-only "$TARGET_COMMIT_ID" "$SOURCE_COMMIT_ID" | tr '\n' ', ' | sed 's/,$//')
+        FILE_COUNT=$(git diff --name-only "$TARGET_COMMIT_ID" "$SOURCE_COMMIT_ID" | wc -l | tr -d ' ')
+        DIFF_METHOD="commit-ids"
+    else
+        echo "⚠️ Commit IDs not available, falling back to HEAD^1"
+        git diff HEAD^1 HEAD > "$ALL_CHANGES_FILE"
+        CHANGED_FILES=$(git diff --name-only HEAD^1 HEAD | tr '\n' ', ' | sed 's/,$//')
+        FILE_COUNT=$(git diff --name-only HEAD^1 HEAD | wc -l | tr -d ' ')
+        DIFF_METHOD="merge-parent"
+    fi
+# Método 2: HEAD^1 (padre del merge commit = target branch)
 elif git rev-parse HEAD^1 > /dev/null 2>&1; then
     echo "Using HEAD^1..HEAD (merge commit parent)"
     git diff HEAD^1 HEAD > "$ALL_CHANGES_FILE"
     CHANGED_FILES=$(git diff --name-only HEAD^1 HEAD | tr '\n' ', ' | sed 's/,$//')
     FILE_COUNT=$(git diff --name-only HEAD^1 HEAD | wc -l | tr -d ' ')
     DIFF_METHOD="merge-parent"
-# Método 4: último commit (fallback)
+# Método 3: último commit (fallback)
 else
     echo "⚠️ Fallback: Using last commit"
     git show HEAD > "$ALL_CHANGES_FILE"
@@ -99,45 +102,48 @@ Analyze all the code changes and provide specific, actionable recommendations. F
 1. The file path and line number(s) where the issue occurs
 2. A clear description of the issue
 3. The severity level (CRITICAL, HIGH, MEDIUM, LOW)
-4. The relevant code snippet that has the issue
-5. A specific recommendation on how to fix it
+4. A category (e.g., Security, Performance, Best Practices, Code Quality, etc.)
+5. A snippet of the problematic code
+6. A concrete recommendation on how to fix it
 
-**All Changes:**
-\`\`\`diff
-$(cat "$ALL_CHANGES_FILE")
-\`\`\`
-
-**Output Format:**
-For each recommendation, use this EXACT format (this is critical for parsing):
+**IMPORTANT OUTPUT FORMAT:**
+Structure your response with clear separators for each recommendation. Use this EXACT format:
 
 ---RECOMMENDATION---
-FILE: <file_path>
-LINE: <line_number or range>
-SEVERITY: <CRITICAL|HIGH|MEDIUM|LOW>
-CATEGORY: <Bugs|Security|Performance|Best Practices|Maintainability|Testing>
-DESCRIPTION: <clear description of the issue>
+FILE: path/to/file.ext
+LINE: 42
+SEVERITY: HIGH
+CATEGORY: Security
+DESCRIPTION: Clear description of the issue
 CODE_SNIPPET:
 \`\`\`
-<the relevant code snippet>
+// The problematic code here
 \`\`\`
-RECOMMENDATION: <specific actionable recommendation>
+RECOMMENDATION: Specific actionable fix
 ---END---
 
-**Instructions:**
-- Be specific and reference exact file paths and line numbers
-- Include the actual code snippet for each issue
-- Focus on meaningful issues that should be addressed
-- If code is good, you can mention it but don't create fake issues
-- Organize findings by severity"
+(Repeat for each recommendation)
 
-echo "🤖 Running Copilot analysis on entire PR..."
-echo "   Model: ${MODEL:-claude-sonnet-4}"
+**Guidelines:**
+- Focus on: security vulnerabilities, performance issues, bugs, code smells, best practices violations
+- Be specific with file paths and line numbers
+- Provide code snippets showing the issue
+- Give actionable recommendations, not just observations
+- Prioritize critical and high-severity issues
 
-# Ejecutar Copilot con todos los cambios
-copilot -p "$PROMPT" \
-    --allow-all-tools \
-    --log-level all \
-    --log-dir "$LOG_DIR" \
+Here are the changes to review:
+"
+
+# Guardar el prompt y los cambios en archivos temporales para debug
+echo "$PROMPT" > /tmp/copilot_prompt.txt
+echo "" >> /tmp/copilot_prompt.txt
+cat "$ALL_CHANGES_FILE" >> /tmp/copilot_prompt.txt
+
+# Ejecutar Copilot con el diff completo
+echo "🤖 Running Copilot analysis..."
+echo "(This may take a few moments depending on the size of the changes)"
+
+cat /tmp/copilot_prompt.txt | copilot \
     --model "${MODEL:-claude-sonnet-4}" > "$LOG_DIR/copilot_raw_output.md" 2>&1 || {
     echo "⚠️ Error executing Copilot CLI"
     echo "**Analysis Error:** Could not complete Copilot analysis. Check logs in $LOG_DIR" > "$REVIEW_OUTPUT"
