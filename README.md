@@ -82,18 +82,16 @@ Crea un **Variable Group** llamado `GitHub Copilot CLI` con las siguientes varia
 4. Selecciona el archivo `azure-pipelines.yml`
 5. Guarda la pipeline
 
-#### 3. Configurar Permisos
+#### 3. Configurar Permisos del Build Service (Opcional)
 
-Asegúrate de que la pipeline tenga permisos para:
+Si decides usar el `System.AccessToken` en lugar del PAT personalizado, asegúrate de que el Build Service tenga permisos para contribuir a PRs:
 
 1. **Contribuir a Pull Requests:**
    - Ve a **Project Settings** → **Repositories** → Tu repositorio
    - En "Security", busca el usuario "Build Service"
    - Otorga permisos de "Contribute to pull requests"
 
-2. **Acceso OAuth:**
-   - En la configuración de la pipeline, habilita:
-   - "Allow scripts to access the OAuth token"
+**Nota:** Al usar `AZURE_DEVOPS_EXT_PAT`, estos permisos del Build Service no son necesarios, ya que el PAT ya tiene los permisos configurados.
 
 ## 📖 Uso
 
