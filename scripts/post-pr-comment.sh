@@ -6,18 +6,22 @@
 set -e
 
 # Validar argumentos
-if [ $# -ne 5 ]; then
+if [ "$#" -ne 5 ]; then
     echo "Uso: $0 <ReportPath> <OrgUrl> <Project> <RepoId> <PrId>"
     echo "Ejemplo: $0 report.md https://dev.azure.com/org/ MyProject repo-id 123"
+    echo "Argumentos recibidos: $#"
+    for i in "$@"; do
+        echo "  - '$i'"
+    done
     echo "Nota: AZURE_DEVOPS_EXT_PAT debe estar configurado como variable de entorno"
     exit 1
 fi
 
-REPORT_PATH=$1
-ORG_URL=$2
-PROJECT=$3
-REPO_ID=$4
-PR_ID=$5
+REPORT_PATH="$1"
+ORG_URL="$2"
+PROJECT="$3"
+REPO_ID="$4"
+PR_ID="$5"
 
 # Verificar que el PAT está configurado
 if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then

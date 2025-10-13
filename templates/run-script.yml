@@ -15,10 +15,14 @@ parameters:
 
 steps:
   - bash: |
+      set -e
+      SCRIPT_PATH="$(System.DefaultWorkingDirectory)/scripts/${{ parameters.script }}"
+      
       if [ -z "${{ parameters.args }}" ]; then
-        $(System.DefaultWorkingDirectory)/scripts/${{ parameters.script }}
+        "$SCRIPT_PATH"
       else
-        $(System.DefaultWorkingDirectory)/scripts/${{ parameters.script }} ${{ parameters.args }}
+        # Usar eval para manejar correctamente las comillas en los argumentos
+        eval "$SCRIPT_PATH" ${{ parameters.args }}
       fi
     displayName: ${{ parameters.displayName }}
     workingDirectory: ${{ parameters.workingDirectory }}

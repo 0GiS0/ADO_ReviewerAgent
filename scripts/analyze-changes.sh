@@ -28,16 +28,57 @@ echo "  - PR #$PR_ID"
 echo "  - Source: $SOURCE_BRANCH"
 echo "  - Target: $TARGET_BRANCH"
 
+# Actualizar referencias remotas
+echo "📡 Fetching target branch..."
+git fetch origin "$TARGET_BRANCH" --depth=50 2>&1 || echo "Could not fetch $TARGET_BRANCH"
+
 # Obtener todos los cambios de la PR
 echo "📝 Getting all changes..."
 ALL_CHANGES_FILE="/tmp/pr_all_changes.diff"
-git diff origin/$TARGET_BRANCH...HEAD > "$ALL_CHANGES_FILE"
 
-# Obtener lista de archivos modificados
-CHANGED_FILES=$(git diff --name-only origin/$TARGET_BRANCH...HEAD | tr '\n' ', ' | sed 's/,$//')
-FILE_COUNT=$(git diff --name-only origin/$TARGET_BRANCH...HEAD | wc -l | tr -d ' ')
+# Determinar el método más apropiado para obtener los cambios
+# Azure DevOps hace checkout del merge commit de la PR
+DIFF_METHOD=""
 
-echo "📊 Files changed: $FILE_COUNT"
+# Método 1: merge-base (más preciso)
+if git merge-base "origin/$TARGET_BRANCH" HEAD > /dev/null 2>&1; then
+    MERGE_BASE=$(git merge-base "origin/$TARGET_BRANCH" HEAD)
+    echo "Using merge-base: $MERGE_BASE"
+    git diff "$MERGE_BASE" HEAD > "$ALL_CHANGES_FILE"
+    CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD | tr '\n' ', ' | sed 's/,$//')
+    FILE_COUNT=$(git diff --name-only "$MERGE_BASE" HEAD | wc -l | tr -d ' ')
+    DIFF_METHOD="merge-base"
+# Método 2: origin/TARGET_BRANCH
+elif git rev-parse "origin/$TARGET_BRANCH" > /dev/null 2>&1; then
+    echo "Using origin/$TARGET_BRANCH...HEAD"
+    git diff "origin/$TARGET_BRANCH"...HEAD > "$ALL_CHANGES_FILE"
+    CHANGED_FILES=$(git diff --name-only "origin/$TARGET_BRANCH"...HEAD | tr '\n' ', ' | sed 's/,$//')
+    FILE_COUNT=$(git diff --name-only "origin/$TARGET_BRANCH"...HEAD | wc -l | tr -d ' ')
+    DIFF_METHOD="three-dot"
+# Método 3: HEAD^1 (padre del merge commit)
+elif git rev-parse HEAD^1 > /dev/null 2>&1; then
+    echo "Using HEAD^1..HEAD (merge commit parent)"
+    git diff HEAD^1 HEAD > "$ALL_CHANGES_FILE"
+    CHANGED_FILES=$(git diff --name-only HEAD^1 HEAD | tr '\n' ', ' | sed 's/,$//')
+    FILE_COUNT=$(git diff --name-only HEAD^1 HEAD | wc -l | tr -d ' ')
+    DIFF_METHOD="merge-parent"
+# Método 4: último commit (fallback)
+else
+    echo "⚠️ Fallback: Using last commit"
+    git show HEAD > "$ALL_CHANGES_FILE"
+    CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | tr '\n' ', ' | sed 's/,$//')
+    FILE_COUNT=$(git diff-tree --no-commit-id --name-only -r HEAD | wc -l | tr -d ' ')
+    DIFF_METHOD="last-commit"
+fi
+
+echo "📊 Files changed: $FILE_COUNT (method: $DIFF_METHOD)"
+
+# Si no hay cambios, salir con error
+if [ "$FILE_COUNT" -eq 0 ] || [ -z "$FILE_COUNT" ] || [ ! -s "$ALL_CHANGES_FILE" ]; then
+    echo "❌ Error: No changes detected in PR"
+    echo "This might indicate a problem with git history or branch references"
+    exit 1
+fi
 
 # Crear directorio de logs si no existe
 LOG_DIR="./logs"

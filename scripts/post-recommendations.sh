@@ -3,16 +3,31 @@ set -e
 
 echo "💬 Posting individual recommendations as PR comments..."
 
-# Verificar argumentos
-RECOMMENDATIONS_FILE=$1
-ORG_URL=$2
-PROJECT=$3
-REPO_ID=$4
-PR_ID=$5
+# Verificar argumentos - usar comillas para manejar espacios
+RECOMMENDATIONS_FILE="$1"
+ORG_URL="$2"
+PROJECT="$3"
+REPO_ID="$4"
+PR_ID="$5"
+
+if [ "$#" -ne 5 ]; then
+    echo "❌ Error: Se requieren exactamente 5 argumentos, recibidos: $#"
+    echo "Usage: $0 <recommendations_file> <org_url> <project> <repo_id> <pr_id>"
+    echo "Argumentos recibidos:"
+    for i in "$@"; do
+        echo "  - '$i'"
+    done
+    echo "Note: AZURE_DEVOPS_EXT_PAT environment variable must be set"
+    exit 1
+fi
 
 if [ -z "$RECOMMENDATIONS_FILE" ] || [ -z "$ORG_URL" ] || [ -z "$PROJECT" ] || [ -z "$REPO_ID" ] || [ -z "$PR_ID" ]; then
-    echo "Usage: $0 <recommendations_file> <org_url> <project> <repo_id> <pr_id>"
-    echo "Note: AZURE_DEVOPS_EXT_PAT environment variable must be set"
+    echo "❌ Error: Uno o más argumentos están vacíos"
+    echo "  RECOMMENDATIONS_FILE: '$RECOMMENDATIONS_FILE'"
+    echo "  ORG_URL: '$ORG_URL'"
+    echo "  PROJECT: '$PROJECT'"
+    echo "  REPO_ID: '$REPO_ID'"
+    echo "  PR_ID: '$PR_ID'"
     exit 1
 fi
 
