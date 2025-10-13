@@ -1,0 +1,108 @@
+# Pipeline de Revisión de PR con GitHub Copilot
+trigger: none
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: "GitHub Copilot CLI"
+  - name: REVIEW_OUTPUT
+    value: "$(Build.ArtifactStagingDirectory)/review-report.md"
+  - name: COPILOT_VERSION
+    value: "0.0.339"
+  - name: MODEL
+    value: claude-sonnet-4
+
+steps:
+  - script: echo "🚀 PR Review pipeline started!"
+    displayName: 🚀 Start Pipeline
+
+  - checkout: self
+    fetchDepth: "0"
+    persistCredentials: "true"
+    displayName: 📥 Checkout Code
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: "spec"
+      versionSpec: "22.x"
+    displayName: ⚙️ Setup Node.js 22.x
+
+  - bash: |
+      NPM_PREFIX=$(npm config get prefix)
+      echo "##vso[task.setvariable variable=NPM_GLOBAL_PATH]${NPM_PREFIX}/lib/node_modules"
+      echo "NPM global path: ${NPM_PREFIX}/lib/node_modules"
+    displayName: 🔍 Detect NPM Global Path
+
+  - task: Cache@2
+    inputs:
+      key: 'npm-global | "$(Agent.OS)" | "copilot" | "$(COPILOT_VERSION)"'
+      path: $(NPM_GLOBAL_PATH)
+      restoreKeys: |
+        npm-global | "$(Agent.OS)" | "copilot"
+    displayName: 📦 Cache Global NPM Packages
+
+  - bash: |
+      if ! command -v gh &> /dev/null; then
+        echo "Installing GitHub CLI and Copilot..."
+        npm install -g @github/copilot
+      else
+        echo "✅ GitHub Copilot CLI already installed (from cache)"
+        copilot --version
+      fi
+    displayName: 📦 Install Copilot CLI
+    env:
+      GITHUB_TOKEN: $(GITHUB_TOKEN)
+
+  - template: templates/run-script.yml
+    parameters:
+      script: get-changed-files.sh
+      displayName: 📋 Get Changed Files
+
+  - template: templates/run-script.yml
+    parameters:
+      script: analyze-changes.sh
+      displayName: 🔍 Analyze Changes with Copilot
+
+  - bash: |
+      echo "=== REPORTE DE REVISIÓN ==="
+      cat $(REVIEW_OUTPUT)
+      echo "==========================="
+    displayName: 📄 Show Report
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+      ArtifactName: "copilot-review"
+      publishLocation: "Container"
+    displayName: 📦 Publish Report as Artifact
+
+  - template: templates/run-script.yml
+    parameters:
+      script: post-pr-comment.sh
+      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.ID)" "$(System.PullRequest.PullRequestId)"'
+      displayName: 💬 Post Summary Comment
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+
+  - template: templates/run-script.yml
+    parameters:
+      script: post-recommendations.sh
+      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.ID)" "$(System.PullRequest.PullRequestId)"'
+      displayName: 💬 Post Individual Recommendations
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+
+  - bash: |
+      echo "✅ PR Review completed successfully"
+      echo "📊 Review report available in artifacts"
+      echo "💬 Comments posted to PR #$(System.PullRequest.PullRequestId)"
+    displayName: ✅ Complete
+    condition: succeeded()

@@ -1,0 +1,25 @@
+parameters:
+  - name: script
+    type: string
+  - name: args
+    type: string
+    default: ''
+  - name: displayName
+    type: string
+  - name: workingDirectory
+    type: string
+    default: $(System.DefaultWorkingDirectory)
+  - name: env
+    type: object
+    default: {}
+
+steps:
+  - bash: |
+      if [ -z "${{ parameters.args }}" ]; then
+        $(System.DefaultWorkingDirectory)/scripts/${{ parameters.script }}
+      else
+        $(System.DefaultWorkingDirectory)/scripts/${{ parameters.script }} ${{ parameters.args }}
+      fi
+    displayName: ${{ parameters.displayName }}
+    workingDirectory: ${{ parameters.workingDirectory }}
+    env: ${{ parameters.env }}
