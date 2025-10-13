@@ -64,7 +64,7 @@ ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y genera un archi
 - No incluyas puntuaciones, ni veredictos extensos, ni secciones adicionales.
 - El archivo debe ser lo más corto y directo posible, solo lo esencial para el revisor.
 - Siempre se tiene que mencionar el nombre del archivo analizado.
-- Si hay alguna mejora relacionada se debe incluir un snippet del código que no está bien.
+- Si hay alguna mejora relacionada se debe incluir un snippet del código que no está bien."
 
 
 
