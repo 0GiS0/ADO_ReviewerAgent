@@ -1,4 +1,4 @@
-# Pipeline de Revisión de PR con GitHub Copilot
+# Pipeline Simplificada - Obtener Diferencias de PR
 trigger: none
 
 pr:
@@ -12,266 +12,132 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  - group: "GitHub Copilot CLI"
-  - name: REVIEW_OUTPUT
-    value: "$(Build.ArtifactStagingDirectory)/review-report.md"
-  - name: COPILOT_VERSION
-    value: "0.0.339"
-  - name: MODEL
-    value: claude-sonnet-4
+  - name: DIFF_OUTPUT
+    value: "$(Build.ArtifactStagingDirectory)/pr-diff.txt"
 
 steps:
-  - script: echo "🚀 PR Review pipeline started!"
-    displayName: 🚀 Start Pipeline
+  - script: echo "🚀 Iniciando pipeline para obtener diferencias del PR"
+    displayName: 🚀 Inicio
 
   - bash: |
-      echo "📋 PR Information:"
-      echo "  - Repository: $(Build.Repository.Name)"
+      echo "📋 Información del Pull Request:"
+      echo "  - Repository URI: $(System.PullRequest.SourceRepositoryUri)"
+      echo "  - PR #: $(System.PullRequest.PullRequestId)"
       echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
       echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
-      echo "  - PR #: $(System.PullRequest.PullRequestId)"
       echo "  - Source Commit: $(System.PullRequest.SourceCommitId)"
-      echo "  - Project: $(System.TeamProject)"
-    displayName: 📋 Show PR Info
-
-  - checkout: self
-    fetchDepth: "0"
-    persistCredentials: "true"
-    displayName: 📥 Checkout PR Repository
-
-  - task: NodeTool@0
-    inputs:
-      versionSource: "spec"
-      versionSpec: "22.x"
-    displayName: ⚙️ Setup Node.js 22.x
-
-  - bash: |
-      NPM_PREFIX=$(npm config get prefix)
-      echo "##vso[task.setvariable variable=NPM_GLOBAL_PATH]${NPM_PREFIX}/lib/node_modules"
-      echo "NPM global path: ${NPM_PREFIX}/lib/node_modules"
-    displayName: 🔍 Detect NPM Global Path
-
-  - task: Cache@2
-    inputs:
-      key: 'npm-global | "$(Agent.OS)" | "copilot" | "$(COPILOT_VERSION)"'
-      path: $(NPM_GLOBAL_PATH)
-      restoreKeys: |
-        npm-global | "$(Agent.OS)" | "copilot"
-    displayName: 📦 Cache Global NPM Packages
-
-  - bash: |
-      if ! command -v copilot &> /dev/null; then
-        echo "Installing @github/copilot..."
-        npm install -g @github/copilot
-      else
-        echo "✅ @github/copilot already installed (from cache)"
-        copilot --version
-      fi
-    displayName: 📦 Install Copilot CLI
-
-  - bash: |
-      echo "📦 Installing jq for JSON processing..."
-      if ! command -v jq &> /dev/null; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq jq
-        echo "✅ jq installed"
-      else
-        echo "✅ jq already installed"
-        jq --version
-      fi
-    displayName: 📦 Install jq
-
-  - bash: |
-      echo "🔍 Analyzing PR changes with Copilot..."
-      
-      # Limpiar nombres de rama (remover refs/heads/)
-      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
-      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
-      SOURCE_BRANCH=${SOURCE_BRANCH#refs/heads/}
-      TARGET_BRANCH=${TARGET_BRANCH#refs/heads/}
-      
-      echo "  - Source Branch: $SOURCE_BRANCH"
-      echo "  - Target Branch: $TARGET_BRANCH"
-      echo "  - Repository: $(Build.Repository.Name)"
-      echo "  - PR #$(System.PullRequest.PullRequestId)"
-      
-      # Crear directorio de logs
-      mkdir -p ./logs
-      
-      # Obtener el diff entre las ramas
+      echo "  - Target Commit: $(System.PullRequest.TargetCommitId)"
       echo ""
-      echo "📄 Getting diff between branches..."
       
-      # Asegurarse de tener las referencias actualizadas
-      git fetch origin "$TARGET_BRANCH" "$SOURCE_BRANCH" || true
-      
-      # Obtener el diff completo
-      DIFF_FILE="./logs/pr_diff.diff"
-      git diff "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" > "$DIFF_FILE"
-      
-      # Verificar que hay cambios
-      if [ ! -s "$DIFF_FILE" ]; then
-        echo "❌ No changes detected between branches"
+      # Extraer el nombre del repositorio fuente
+      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
+      if [ -n "$SOURCE_REPO_URI" ]; then
+        SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
+        echo "  - Repositorio fuente: $SOURCE_REPO_NAME"
+        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$SOURCE_REPO_NAME"
+      else
+        echo "❌ ERROR: System.PullRequest.SourceRepositoryUri está vacío"
         exit 1
       fi
+    displayName: 📋 Mostrar Información del PR
+
+  - bash: |
+      echo "📥 Clonando el repositorio fuente..."
       
-      # Contar archivos modificados
-      FILE_COUNT=$(git diff --name-only "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" | wc -l | tr -d ' ')
-      CHANGED_FILES=$(git diff --name-only "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" | tr '\n' ', ' | sed 's/,$//')
+      # Clonar el repositorio fuente
+      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
       
-      echo "✅ Found $FILE_COUNT changed files"
-      echo "Files: $CHANGED_FILES"
+      # Configurar autenticación para el clone
+      if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
+        # Usar PAT si está disponible
+        AUTH_URI=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://:$AZURE_DEVOPS_EXT_PAT@|")
+      else
+        # Usar System.AccessToken
+        AUTH_URI=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://:$(System.AccessToken)@|")
+      fi
       
-      # Crear el prompt para Copilot
-      cat > ./logs/copilot_prompt.txt << 'PROMPTEOF'
-      You are an expert code reviewer. Review the following Pull Request changes.
+      echo "Clonando desde: $SOURCE_REPO_URI"
+      git clone "$AUTH_URI" source-repo
+      cd source-repo
       
-      PR Information:
-      - Repository: $(Build.Repository.Name)
-      - Source Branch: $(SOURCE_BRANCH) (changes to be merged)
-      - Target Branch: $(TARGET_BRANCH) (destination)
-      - PR #$(System.PullRequest.PullRequestId)
-      - Files Changed: $(FILE_COUNT)
+      echo "✅ Repositorio clonado exitosamente"
+      echo "📋 Branches disponibles:"
+      git branch -a
       
-      Changed Files:
-      $(CHANGED_FILES)
-      
-      Diff:
-      ```diff
-      $(cat "$DIFF_FILE")
-      ```
-      
-      Your Task:
-      Analyze these code changes and provide specific, actionable code review recommendations.
-      
-      IMPORTANT OUTPUT FORMAT - Use this EXACT format for each recommendation:
-      
-      ---RECOMMENDATION---
-      FILE: path/to/file.ext
-      LINE: (line number or range, or 'N/A')
-      SEVERITY: CRITICAL/HIGH/MEDIUM/LOW
-      CATEGORY: Security/Performance/Best Practices/Code Quality/Bug/etc
-      DESCRIPTION: Clear description of the issue
-      CODE_SNIPPET:
-      ```
-      // The problematic code or pattern
-      ```
-      RECOMMENDATION: Specific actionable fix or improvement
-      ---END---
-      
-      Focus on:
-      - Security vulnerabilities
-      - Performance issues
-      - Bugs and potential errors
-      - Code quality and best practices
-      - Breaking changes
-      - Missing documentation
-      - Test coverage
-      
-      Please analyze these changes and provide your recommendations.
-      PROMPTEOF
-      
-      # Reemplazar variables en el prompt
-      sed -i "s|\$(Build.Repository.Name)|$(Build.Repository.Name)|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(SOURCE_BRANCH)|$SOURCE_BRANCH|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(TARGET_BRANCH)|$TARGET_BRANCH|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(System.PullRequest.PullRequestId)|$(System.PullRequest.PullRequestId)|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(FILE_COUNT)|$FILE_COUNT|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(CHANGED_FILES)|$CHANGED_FILES|g" ./logs/copilot_prompt.txt
-      sed -i "s|\$(cat \"\$DIFF_FILE\")|$(cat "$DIFF_FILE")|g" ./logs/copilot_prompt.txt
-      
-      # Ejecutar Copilot
-      echo ""
-      echo "🤖 Running Copilot analysis..."
-      
-      cat ./logs/copilot_prompt.txt | copilot --model "${MODEL}" > ./logs/copilot_raw_output.md 2>&1 || {
-        echo "⚠️ Error executing Copilot CLI"
-        echo "**Analysis Error:** Could not complete analysis." > "$(REVIEW_OUTPUT)"
-        exit 1
-      }
-      
-      cp ./logs/copilot_raw_output.md ./logs/copilot_recommendations.md
-      
-      # Crear reporte final
-      echo ""
-      echo "📄 Generating final report..."
-      
-      cat > "$(REVIEW_OUTPUT)" << EOF
-      # PR Review Report
-      
-      **Repository:** $(Build.Repository.Name)
-      **Source Branch:** $SOURCE_BRANCH (changes to merge)
-      **Target Branch:** $TARGET_BRANCH (destination)
-      **Pull Request:** #$(System.PullRequest.PullRequestId)
-      **Date:** $(date)
-      **Files Changed:** $FILE_COUNT
-      **Review Model:** ${MODEL}
-      
-      ---
-      
-      ## 🤖 Copilot Code Review
-      
-      EOF
-      
-      cat ./logs/copilot_raw_output.md >> "$(REVIEW_OUTPUT)"
-      
-      cat >> "$(REVIEW_OUTPUT)" << EOF
-      
-      ---
-      
-      ## 📊 Review Summary
-      
-      - **Total Files Reviewed:** $FILE_COUNT
-      - **Changed Files:** $CHANGED_FILES
-      - **Analysis Model:** ${MODEL}
-      - **Branch Comparison:** $TARGET_BRANCH → $SOURCE_BRANCH
-      
-      ---
-      
-      *Report generated automatically by GitHub Copilot CLI*
-      EOF
-      
-      echo ""
-      echo "✅ Analysis completed successfully"
-      echo "📊 Files reviewed: $FILE_COUNT"
-      echo "📄 Report saved to: $(REVIEW_OUTPUT)"
-    displayName: 🔍 Analyze PR with Copilot
+      echo "📋 Información del repositorio:"
+      echo "  - Commit actual: $(git rev-parse HEAD)"
+      echo "  - Branch actual: $(git branch --show-current)"
+    displayName: � Clonar Repositorio Fuente
     env:
-      MODEL: $(MODEL)
-      REVIEW_OUTPUT: $(REVIEW_OUTPUT)
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "=== REPORTE DE REVISIÓN ==="
-      cat $(REVIEW_OUTPUT)
-      echo "==========================="
-    displayName: 📄 Show Report
+      cd source-repo
+      
+      echo "🔍 Obteniendo diferencias entre branches..."
+      
+      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
+      
+      # Remover prefijos refs/heads/ si existen
+      TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
+      SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
+      
+      echo "  - Target Branch: $TARGET_BRANCH_CLEAN"
+      echo "  - Source Branch: $SOURCE_BRANCH_CLEAN"
+      
+      # Asegurarse de que tenemos los branches localmente
+      git fetch origin "$TARGET_BRANCH_CLEAN" || echo "No se pudo hacer fetch del target branch"
+      git fetch origin "$SOURCE_BRANCH_CLEAN" || echo "No se pudo hacer fetch del source branch"
+      
+      # Checkout al source branch
+      git checkout "$SOURCE_BRANCH_CLEAN" || git checkout -b "$SOURCE_BRANCH_CLEAN" "origin/$SOURCE_BRANCH_CLEAN"
+      
+      echo ""
+      echo "📊 Archivos modificados:"
+      git diff --name-only "origin/$TARGET_BRANCH_CLEAN"..."$SOURCE_BRANCH_CLEAN" | head -20
+      
+      echo ""
+      echo "� Generando diff completo..."
+      git diff "origin/$TARGET_BRANCH_CLEAN"..."$SOURCE_BRANCH_CLEAN" > "$(DIFF_OUTPUT)"
+      
+      # Mostrar estadísticas
+      echo ""
+      echo "📊 Estadísticas del diff:"
+      echo "  - Líneas en el diff: $(wc -l < "$(DIFF_OUTPUT)")"
+      echo "  - Tamaño del archivo: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
+      
+      # Mostrar las primeras líneas del diff
+      echo ""
+      echo "📋 Primeras 50 líneas del diff:"
+      head -50 "$(DIFF_OUTPUT)"
+      
+      echo ""
+      echo "✅ Diff generado exitosamente en: $(DIFF_OUTPUT)"
+    displayName: 🔍 Obtener Diferencias del PR
+
+  - bash: |
+      echo "📄 Resumen del análisis:"
+      echo "  - Archivo de diferencias: $(DIFF_OUTPUT)"
+      if [ -f "$(DIFF_OUTPUT)" ]; then
+        echo "  - Tamaño: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
+        echo "  - Líneas: $(wc -l < "$(DIFF_OUTPUT)")"
+        echo "✅ Diff generado correctamente"
+      else
+        echo "❌ ERROR: No se generó el archivo de diferencias"
+        exit 1
+      fi
+    displayName: 📄 Mostrar Resumen
 
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-      ArtifactName: "copilot-review"
+      ArtifactName: "pr-diff"
       publishLocation: "Container"
-    displayName: 📦 Publish Report as Artifact
-
-  - template: templates/run-script.yml
-    parameters:
-      script: post-pr-comment.sh
-      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.Id)" "$(System.PullRequest.PullRequestId)"'
-      displayName: 💬 Post Summary Comment
-      env:
-        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-
-  - template: templates/run-script.yml
-    parameters:
-      script: post-recommendations.sh
-      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.Id)" "$(System.PullRequest.PullRequestId)"'
-      displayName: 💬 Post Individual Recommendations
-      env:
-        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+    displayName: 📦 Publicar Diff como Artefacto
 
   - bash: |
-      echo "✅ PR Review completed successfully"
-      echo "📊 Review report available in artifacts"
-      echo "💬 Comments posted to PR #$(System.PullRequest.PullRequestId)"
-    displayName: ✅ Complete
-    condition: succeeded()
+      echo "✅ Pipeline completada exitosamente"
+      echo "📁 El diff está disponible en los artefactos como 'pr-diff'"
+    displayName: ✅ Completado
