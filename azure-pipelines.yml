@@ -93,7 +93,7 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "🔍 Obteniendo diferencias entre branches..."
+      echo "🔍 Obteniendo diferencias entre branches usando comando dinámico..."
       
       TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
       SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
@@ -102,29 +102,34 @@ steps:
       TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
       SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
       
-      echo "  - Target Branch: $TARGET_BRANCH_CLEAN"
-      echo "  - Source Branch: $SOURCE_BRANCH_CLEAN"
+      echo "📋 Ejecutando: git --no-pager diff origin/$TARGET_BRANCH_CLEAN..origin/$SOURCE_BRANCH_CLEAN"
+      echo "  - Target Branch (main): $TARGET_BRANCH_CLEAN"
+      echo "  - Source Branch (copilot/465): $SOURCE_BRANCH_CLEAN"
       
-      # Asegurarse de que tenemos los branches localmente
-      git fetch origin "$TARGET_BRANCH_CLEAN" || echo "No se pudo hacer fetch del target branch"
-      git fetch origin "$SOURCE_BRANCH_CLEAN" || echo "No se pudo hacer fetch del source branch"
-      
-      # Checkout al source branch
-      git checkout "$SOURCE_BRANCH_CLEAN" || git checkout -b "$SOURCE_BRANCH_CLEAN" "origin/$SOURCE_BRANCH_CLEAN"
-      
-      echo ""
-      echo "📊 Archivos modificados:"
-      git diff --name-only "origin/$TARGET_BRANCH_CLEAN"..."$SOURCE_BRANCH_CLEAN" | head -20
+      # Asegurarse de que tenemos los branches necesarios
+      echo "🔄 Haciendo fetch de las ramas necesarias..."
+      git fetch origin "$TARGET_BRANCH_CLEAN" || echo "No se pudo hacer fetch de $TARGET_BRANCH_CLEAN"
+      git fetch origin "$SOURCE_BRANCH_CLEAN" || echo "No se pudo hacer fetch de $SOURCE_BRANCH_CLEAN"
       
       echo ""
-      echo "� Generando diff completo..."
-      git diff "origin/$TARGET_BRANCH_CLEAN"..."$SOURCE_BRANCH_CLEAN" > "$(DIFF_OUTPUT)"
+      echo "📊 Archivos modificados entre $TARGET_BRANCH_CLEAN y $SOURCE_BRANCH_CLEAN:"
+      git --no-pager diff --name-only "origin/$TARGET_BRANCH_CLEAN".."origin/$SOURCE_BRANCH_CLEAN" | head -20
+      
+      echo ""
+      echo "🔍 Generando diff completo entre origin/$TARGET_BRANCH_CLEAN y origin/$SOURCE_BRANCH_CLEAN..."
+      git --no-pager diff "origin/$TARGET_BRANCH_CLEAN".."origin/$SOURCE_BRANCH_CLEAN" > "$(DIFF_OUTPUT)"
       
       # Mostrar estadísticas
       echo ""
       echo "📊 Estadísticas del diff:"
       echo "  - Líneas en el diff: $(wc -l < "$(DIFF_OUTPUT)")"
       echo "  - Tamaño del archivo: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
+      
+      # Mostrar información de los commits
+      echo ""
+      echo "📋 Información de commits:"
+      echo "  - Commit en $TARGET_BRANCH_CLEAN: $(git rev-parse "origin/$TARGET_BRANCH_CLEAN" 2>/dev/null || echo 'No disponible')"
+      echo "  - Commit en $SOURCE_BRANCH_CLEAN: $(git rev-parse "origin/$SOURCE_BRANCH_CLEAN" 2>/dev/null || echo 'No disponible')"
       
       # Mostrar las primeras líneas del diff
       echo ""
