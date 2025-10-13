@@ -25,84 +25,19 @@ steps:
     displayName: 🚀 Start Pipeline
 
   - bash: |
-      echo "📋 PR and Repository Information:"
-      echo "  - Pipeline Repository: $(Build.Repository.Name)"
-      echo "  - Source Repository URI: $(System.PullRequest.SourceRepositoryUri)"
-      echo "  - Target Repository URI: $(Build.Repository.Uri)"
-      echo "  - PR #: $(System.PullRequest.PullRequestId)"
+      echo "📋 PR Information:"
+      echo "  - Repository: $(Build.Repository.Name)"
       echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
       echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
+      echo "  - PR #: $(System.PullRequest.PullRequestId)"
+      echo "  - Source Commit: $(System.PullRequest.SourceCommitId)"
       echo "  - Project: $(System.TeamProject)"
-      echo "  - Collection: $(System.CollectionUri)"
-      echo ""
-      echo "🔍 Extracting Source Repository Info..."
-      
-      # Extraer el nombre del repositorio del source URI
-      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      BUILD_REPO_URI="$(Build.Repository.Uri)"
-      
-      echo "DEBUG: SOURCE_REPO_URI='$SOURCE_REPO_URI'"
-      echo "DEBUG: BUILD_REPO_URI='$BUILD_REPO_URI'"
-      
-      # SIEMPRE usar el source repository URI, no el build repository
-      if [ -n "$SOURCE_REPO_URI" ]; then
-        # El URI tiene formato: https://org@dev.azure.com/org/Project/_git/RepoName
-        SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
-        echo "  - Extracted Source Repository Name: $SOURCE_REPO_NAME"
-        
-        # URL encode del nombre del proyecto (reemplazar espacios por %20)
-        PROJECT_ENCODED=$(echo "$(System.TeamProject)" | sed 's/ /%20/g')
-        
-        # Obtener el Repository ID del source repo via API
-        API_URL="$(System.CollectionUri)${PROJECT_ENCODED}/_apis/git/repositories/$SOURCE_REPO_NAME?api-version=7.0"
-        echo "  - Calling API: $API_URL"
-        
-        # Configurar autenticación
-        if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
-          AUTH_HEADER="Authorization: Basic $(echo -n ":$AZURE_DEVOPS_EXT_PAT" | base64)"
-          echo "  - Using PAT authentication"
-        else
-          AUTH_HEADER="Authorization: Bearer $(System.AccessToken)"
-          echo "  - Using System.AccessToken"
-        fi
-        
-        # Obtener info del repositorio
-        REPO_INFO=$(curl -s -H "$AUTH_HEADER" "$API_URL")
-        echo "DEBUG: API Response: $REPO_INFO"
-        
-        # Verificar si jq está disponible
-        if command -v jq &> /dev/null; then
-          SOURCE_REPO_ID=$(echo "$REPO_INFO" | jq -r '.id // empty')
-        else
-          # Fallback sin jq
-          SOURCE_REPO_ID=$(echo "$REPO_INFO" | python3 -c "import sys, json; print(json.load(sys.stdin).get('id', ''))" 2>/dev/null || echo "")
-        fi
-        
-        if [ -z "$SOURCE_REPO_ID" ]; then
-          echo "❌ ERROR: Could not get Source Repository ID from API"
-          echo "This means the source repository '$SOURCE_REPO_NAME' may not exist or authentication failed"
-          exit 1
-        else
-          echo "✅ Source Repository ID: $SOURCE_REPO_ID"
-        fi
-        
-        # Exportar como variables para los siguientes pasos
-        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$SOURCE_REPO_NAME"
-        echo "##vso[task.setvariable variable=SOURCE_REPO_ID]$SOURCE_REPO_ID"
-      else
-        echo "❌ ERROR: System.PullRequest.SourceRepositoryUri is empty"
-        echo "This pipeline should only run on Pull Requests"
-        exit 1
-      fi
-    displayName: 📋 Detect Source Repository
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+    displayName: 📋 Show PR Info
 
   - checkout: self
     fetchDepth: "0"
     persistCredentials: "true"
-    displayName: 📥 Checkout Code
+    displayName: 📥 Checkout PR Repository
 
   - task: NodeTool@0
     inputs:
@@ -146,33 +81,164 @@ steps:
       fi
     displayName: 📦 Install jq
 
-  - template: templates/run-script.yml
-    parameters:
-      script: get-changed-files.sh
-      displayName: 📋 Get Changed Files
-      env:
-        SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
-        SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
-        SYSTEM_PULLREQUEST_SOURCECOMMITID: $(System.PullRequest.SourceCommitId)
-        SYSTEM_PULLREQUEST_TARGETCOMMITID: $(System.PullRequest.TargetCommitId)
-        BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
-
-  - template: templates/run-script.yml
-    parameters:
-      script: analyze-pr-diff.sh
-      displayName: 🔍 Analyze Branch Diff with Copilot
-      env:
-        SYSTEM_COLLECTIONURI: $(System.CollectionUri)
-        SYSTEM_TEAMPROJECT: $(System.TeamProject)
-        SOURCE_REPO_ID: $(SOURCE_REPO_ID)
-        SOURCE_REPO_NAME: $(SOURCE_REPO_NAME)
-        SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
-        SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
-        SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-        REVIEW_OUTPUT: $(REVIEW_OUTPUT)
-        MODEL: $(MODEL)
+  - bash: |
+      echo "🔍 Analyzing PR changes with Copilot..."
+      
+      # Limpiar nombres de rama (remover refs/heads/)
+      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
+      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+      SOURCE_BRANCH=${SOURCE_BRANCH#refs/heads/}
+      TARGET_BRANCH=${TARGET_BRANCH#refs/heads/}
+      
+      echo "  - Source Branch: $SOURCE_BRANCH"
+      echo "  - Target Branch: $TARGET_BRANCH"
+      echo "  - Repository: $(Build.Repository.Name)"
+      echo "  - PR #$(System.PullRequest.PullRequestId)"
+      
+      # Crear directorio de logs
+      mkdir -p ./logs
+      
+      # Obtener el diff entre las ramas
+      echo ""
+      echo "📄 Getting diff between branches..."
+      
+      # Asegurarse de tener las referencias actualizadas
+      git fetch origin "$TARGET_BRANCH" "$SOURCE_BRANCH" || true
+      
+      # Obtener el diff completo
+      DIFF_FILE="./logs/pr_diff.diff"
+      git diff "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" > "$DIFF_FILE"
+      
+      # Verificar que hay cambios
+      if [ ! -s "$DIFF_FILE" ]; then
+        echo "❌ No changes detected between branches"
+        exit 1
+      fi
+      
+      # Contar archivos modificados
+      FILE_COUNT=$(git diff --name-only "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" | wc -l | tr -d ' ')
+      CHANGED_FILES=$(git diff --name-only "origin/$TARGET_BRANCH...origin/$SOURCE_BRANCH" | tr '\n' ', ' | sed 's/,$//')
+      
+      echo "✅ Found $FILE_COUNT changed files"
+      echo "Files: $CHANGED_FILES"
+      
+      # Crear el prompt para Copilot
+      cat > ./logs/copilot_prompt.txt << 'PROMPTEOF'
+      You are an expert code reviewer. Review the following Pull Request changes.
+      
+      PR Information:
+      - Repository: $(Build.Repository.Name)
+      - Source Branch: $(SOURCE_BRANCH) (changes to be merged)
+      - Target Branch: $(TARGET_BRANCH) (destination)
+      - PR #$(System.PullRequest.PullRequestId)
+      - Files Changed: $(FILE_COUNT)
+      
+      Changed Files:
+      $(CHANGED_FILES)
+      
+      Diff:
+      ```diff
+      $(cat "$DIFF_FILE")
+      ```
+      
+      Your Task:
+      Analyze these code changes and provide specific, actionable code review recommendations.
+      
+      IMPORTANT OUTPUT FORMAT - Use this EXACT format for each recommendation:
+      
+      ---RECOMMENDATION---
+      FILE: path/to/file.ext
+      LINE: (line number or range, or 'N/A')
+      SEVERITY: CRITICAL/HIGH/MEDIUM/LOW
+      CATEGORY: Security/Performance/Best Practices/Code Quality/Bug/etc
+      DESCRIPTION: Clear description of the issue
+      CODE_SNIPPET:
+      ```
+      // The problematic code or pattern
+      ```
+      RECOMMENDATION: Specific actionable fix or improvement
+      ---END---
+      
+      Focus on:
+      - Security vulnerabilities
+      - Performance issues
+      - Bugs and potential errors
+      - Code quality and best practices
+      - Breaking changes
+      - Missing documentation
+      - Test coverage
+      
+      Please analyze these changes and provide your recommendations.
+      PROMPTEOF
+      
+      # Reemplazar variables en el prompt
+      sed -i "s|\$(Build.Repository.Name)|$(Build.Repository.Name)|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(SOURCE_BRANCH)|$SOURCE_BRANCH|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(TARGET_BRANCH)|$TARGET_BRANCH|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(System.PullRequest.PullRequestId)|$(System.PullRequest.PullRequestId)|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(FILE_COUNT)|$FILE_COUNT|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(CHANGED_FILES)|$CHANGED_FILES|g" ./logs/copilot_prompt.txt
+      sed -i "s|\$(cat \"\$DIFF_FILE\")|$(cat "$DIFF_FILE")|g" ./logs/copilot_prompt.txt
+      
+      # Ejecutar Copilot
+      echo ""
+      echo "🤖 Running Copilot analysis..."
+      
+      cat ./logs/copilot_prompt.txt | copilot --model "${MODEL}" > ./logs/copilot_raw_output.md 2>&1 || {
+        echo "⚠️ Error executing Copilot CLI"
+        echo "**Analysis Error:** Could not complete analysis." > "$(REVIEW_OUTPUT)"
+        exit 1
+      }
+      
+      cp ./logs/copilot_raw_output.md ./logs/copilot_recommendations.md
+      
+      # Crear reporte final
+      echo ""
+      echo "📄 Generating final report..."
+      
+      cat > "$(REVIEW_OUTPUT)" << EOF
+      # PR Review Report
+      
+      **Repository:** $(Build.Repository.Name)
+      **Source Branch:** $SOURCE_BRANCH (changes to merge)
+      **Target Branch:** $TARGET_BRANCH (destination)
+      **Pull Request:** #$(System.PullRequest.PullRequestId)
+      **Date:** $(date)
+      **Files Changed:** $FILE_COUNT
+      **Review Model:** ${MODEL}
+      
+      ---
+      
+      ## 🤖 Copilot Code Review
+      
+      EOF
+      
+      cat ./logs/copilot_raw_output.md >> "$(REVIEW_OUTPUT)"
+      
+      cat >> "$(REVIEW_OUTPUT)" << EOF
+      
+      ---
+      
+      ## 📊 Review Summary
+      
+      - **Total Files Reviewed:** $FILE_COUNT
+      - **Changed Files:** $CHANGED_FILES
+      - **Analysis Model:** ${MODEL}
+      - **Branch Comparison:** $TARGET_BRANCH → $SOURCE_BRANCH
+      
+      ---
+      
+      *Report generated automatically by GitHub Copilot CLI*
+      EOF
+      
+      echo ""
+      echo "✅ Analysis completed successfully"
+      echo "📊 Files reviewed: $FILE_COUNT"
+      echo "📄 Report saved to: $(REVIEW_OUTPUT)"
+    displayName: 🔍 Analyze PR with Copilot
+    env:
+      MODEL: $(MODEL)
+      REVIEW_OUTPUT: $(REVIEW_OUTPUT)
 
   - bash: |
       echo "=== REPORTE DE REVISIÓN ==="
@@ -190,7 +256,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: post-pr-comment.sh
-      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(SOURCE_REPO_ID)" "$(System.PullRequest.PullRequestId)"'
+      args: '"$(REVIEW_OUTPUT)" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.Id)" "$(System.PullRequest.PullRequestId)"'
       displayName: 💬 Post Summary Comment
       env:
         AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
@@ -198,7 +264,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: post-recommendations.sh
-      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(SOURCE_REPO_ID)" "$(System.PullRequest.PullRequestId)"'
+      args: '"./logs/copilot_recommendations.md" "$(System.CollectionUri)" "$(System.TeamProject)" "$(Build.Repository.Id)" "$(System.PullRequest.PullRequestId)"'
       displayName: 💬 Post Individual Recommendations
       env:
         AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
