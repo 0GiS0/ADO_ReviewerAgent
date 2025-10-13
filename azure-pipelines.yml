@@ -27,116 +27,35 @@ steps:
       echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
       echo "  - Source Commit: $(System.PullRequest.SourceCommitId)"
       echo "  - Target Commit: $(System.PullRequest.TargetCommitId)"
-      echo ""
+      echo ""      
       
-      # Extraer el nombre del repositorio fuente
-      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      if [ -n "$SOURCE_REPO_URI" ]; then
-        SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
-        echo "  - Repositorio fuente: $SOURCE_REPO_NAME"
-        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$SOURCE_REPO_NAME"
-      else
-        echo "❌ ERROR: System.PullRequest.SourceRepositoryUri está vacío"
-        exit 1
-      fi
     displayName: 📋 Mostrar Información del PR
 
   - bash: |
-      echo "📥 Analizando repositorio fuente..."
+      echo "📥 Clonar repositorio fuente del PR..."
       
       # Obtener la URI del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      echo "URI original: $SOURCE_REPO_URI"
+      echo "Descargar: $SOURCE_REPO_URI"
       
-      # En Azure DevOps, el agente ya descarga el repositorio automáticamente
-      # Solo necesitamos configurar la autenticación para operaciones adicionales
-      if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "Configurando autenticación con PAT"
-        git config --global credential.helper store
-        echo "https://:$AZURE_DEVOPS_EXT_PAT@dev.azure.com" > ~/.git-credentials
-      else
-        echo "Configurando autenticación con System.AccessToken"  
-        git config --global credential.helper store
-        echo "https://:$(System.AccessToken)@dev.azure.com" > ~/.git-credentials
-      fi
-      
-      echo "📋 Información del repositorio actual:"
-      echo "  - Working directory: $(pwd)"
-      echo "  - Git status disponible: $(git status --porcelain >/dev/null 2>&1 && echo 'Sí' || echo 'No')"
-      
-      echo "📋 Remotes configurados:"
-      git remote -v 2>/dev/null || echo "No hay remotes configurados"
-      
-      echo "📋 Branches disponibles:"
-      git branch -a 2>/dev/null || echo "No se pueden listar branches"
-      
-      echo "📋 Información del commit:"
-      echo "  - Commit actual: $(git rev-parse HEAD 2>/dev/null || echo 'No disponible')"
-      echo "  - Branch actual: $(git branch --show-current 2>/dev/null || echo 'No disponible')"
-      
-      # Si el repositorio fuente es diferente al actual, intentar agregarlo como remote
-      CURRENT_REPO_URI="$(Build.Repository.Uri)"
-      if [ "$SOURCE_REPO_URI" != "$CURRENT_REPO_URI" ]; then
-        echo "⚠️  El repositorio fuente es diferente al pipeline repository"
-        echo "   - Pipeline repo: $CURRENT_REPO_URI"
-        echo "   - Source repo: $SOURCE_REPO_URI"
-        
-        echo "🔄 Agregando repositorio fuente como remote..."
-        git remote add source-repo "$SOURCE_REPO_URI" 2>/dev/null || echo "No se pudo agregar remote (podría ya existir)"
-        git fetch source-repo 2>/dev/null || echo "No se pudo hacer fetch del source repo"
-      else
-        echo "✅ El repositorio fuente es el mismo que el pipeline repository"
-      fi
-    displayName: � Clonar Repositorio Fuente
+      git clone $(System.PullRequest.SourceRepositoryUri) source-repo
+
+    displayName: 📥 Clonar Repositorio Fuente
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "🔍 Obteniendo diferencias entre branches usando comando dinámico..."
-      
-      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
-      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
-      
-      # Remover prefijos refs/heads/ si existen
-      TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
-      SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
-      
-      echo "📋 Ejecutando: git --no-pager diff origin/$TARGET_BRANCH_CLEAN..origin/$SOURCE_BRANCH_CLEAN"
-      echo "  - Target Branch (main): $TARGET_BRANCH_CLEAN"
-      echo "  - Source Branch (copilot/465): $SOURCE_BRANCH_CLEAN"
-      
-      # Asegurarse de que tenemos los branches necesarios
-      echo "🔄 Haciendo fetch de las ramas necesarias..."
-      git fetch origin "$TARGET_BRANCH_CLEAN" || echo "No se pudo hacer fetch de $TARGET_BRANCH_CLEAN"
-      git fetch origin "$SOURCE_BRANCH_CLEAN" || echo "No se pudo hacer fetch de $SOURCE_BRANCH_CLEAN"
-      
+      echo "Usar git diff para ver diferencias entre ramas..."
       echo ""
-      echo "📊 Archivos modificados entre $TARGET_BRANCH_CLEAN y $SOURCE_BRANCH_CLEAN:"
-      git --no-pager diff --name-only "origin/$TARGET_BRANCH_CLEAN".."origin/$SOURCE_BRANCH_CLEAN" | head -20
+
+      cd source-repo || { echo "❌ ERROR: No se pudo cambiar al directorio source-repo"; exit 1; }
       
-      echo ""
-      echo "🔍 Generando diff completo entre origin/$TARGET_BRANCH_CLEAN y origin/$SOURCE_BRANCH_CLEAN..."
-      git --no-pager diff "origin/$TARGET_BRANCH_CLEAN".."origin/$SOURCE_BRANCH_CLEAN" > "$(DIFF_OUTPUT)"
-      
-      # Mostrar estadísticas
-      echo ""
-      echo "📊 Estadísticas del diff:"
-      echo "  - Líneas en el diff: $(wc -l < "$(DIFF_OUTPUT)")"
-      echo "  - Tamaño del archivo: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
-      
-      # Mostrar información de los commits
-      echo ""
-      echo "📋 Información de commits:"
-      echo "  - Commit en $TARGET_BRANCH_CLEAN: $(git rev-parse "origin/$TARGET_BRANCH_CLEAN" 2>/dev/null || echo 'No disponible')"
-      echo "  - Commit en $SOURCE_BRANCH_CLEAN: $(git rev-parse "origin/$SOURCE_BRANCH_CLEAN" 2>/dev/null || echo 'No disponible')"
-      
-      # Mostrar las primeras líneas del diff
-      echo ""
-      echo "📋 Primeras 50 líneas del diff:"
-      head -50 "$(DIFF_OUTPUT)"
-      
-      echo ""
+
+      git fetch origin
+      git --no-pager diff origin/main..origin/copilot/465 > "$(DIFF_OUTPUT)" || { echo "❌ ERROR: Falló el comando git diff"; exit 1; }
+
+
       echo "✅ Diff generado exitosamente en: $(DIFF_OUTPUT)"
     displayName: 🔍 Obtener Diferencias del PR
 
