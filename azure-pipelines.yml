@@ -109,7 +109,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: analyze-with-copilot.sh
-      args: '"$(ANALYSIS_DIR)/source" "$(ANALYSIS_DIR)/source/pr-comment.md"'
+      args: '"$(ANALYSIS_DIR)/source"
       displayName: 🤖 Analyze with GitHub Copilot CLI
       workingDirectory: $(System.DefaultWorkingDirectory)
 
