@@ -64,124 +64,9 @@ steps:
         echo "✅ @github/copilot already installed (from cache)"
         copilot --version
       fi
-    displayName: 📦 Install Copilot CLI
+    displayName: 📦 Install Copilot CLI  
 
   - bash: |
-      echo "💬 HARDCODED API TEST (exact local values)"
-      echo "=========================================="
-      echo ""
-      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "❌ PAT not available, skipping hardcoded test"
-        exit 0
-      fi
-
-      # HARDCODED values exactly as used locally (except PAT)
-      ORGANIZATION="returngisorg"
-      PROJECT="GitHub Copilot CLI"
-      REPOSITORY="Demo"
-      PR_ID="113"
-
-      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
-      API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads?api-version=7.1"
-      
-      echo "🔧 HARDCODED Configuration:"
-      echo "  - Organization: $ORGANIZATION"
-      echo "  - Project: $PROJECT"
-      echo "  - Repository: $REPOSITORY"
-      echo "  - PR ID: $PR_ID"
-      echo "  - API URL: $API_URL"
-
-      # Simple hardcoded test comment (single line to avoid YAML issues)
-      TEST_COMMENT="🤖 Hardcoded pipeline test comment - $(date -u '+%Y-%m-%d %H:%M:%S UTC') - Testing exact same API call as local test script"
-
-      echo "📝 Test comment: $TEST_COMMENT"
-      echo "� Test comment length: $(echo "$TEST_COMMENT" | wc -c) characters"
-
-      # Escape content for JSON using exact method from test-pr-comment.sh
-      ESCAPED_CONTENT=$(echo "$TEST_COMMENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-
-      # Create JSON payload using printf to avoid heredoc YAML conflicts
-      PAYLOAD_FILE="/tmp/hardcoded-test-payload-$$.json"
-      printf '{\n  "comments": [\n    {\n      "parentCommentId": 0,\n      "content": "%s",\n      "commentType": 1\n    }\n  ],\n  "status": 1\n}' "$ESCAPED_CONTENT" > "$PAYLOAD_FILE"
-
-      echo "📊 Payload size: $(wc -c < "$PAYLOAD_FILE") bytes"
-
-      # Generate authentication header
-      AUTH_HEADER=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64)
-      echo "� Auth header generated (length: ${#AUTH_HEADER} characters)"
-
-      # Make API call using EXACT same method as test-pr-comment.sh
-      echo "🚀 Making hardcoded test API call..."
-      HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-        --connect-timeout 30 \
-        --max-time 60 \
-        -X POST \
-        -H "Authorization: Basic $AUTH_HEADER" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -d @"$PAYLOAD_FILE" \
-        "$API_URL")
-
-      # Parse response exactly like test-pr-comment.sh
-      HTTP_CODE=$(echo "$HTTP_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-      RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
-
-      echo "📡 HTTP Response Code: $HTTP_CODE"
-
-      # Clean up
-      rm -f "$PAYLOAD_FILE"
-
-      # Process response like test-pr-comment.sh
-      case "$HTTP_CODE" in
-          200|201)
-              echo "✅ HARDCODED TEST PASSED: Comment posted successfully!"
-              
-              # Try to extract thread ID if jq is available
-              if command -v jq &> /dev/null && echo "$RESPONSE_BODY" | jq empty 2>/dev/null; then
-                  THREAD_ID=$(echo "$RESPONSE_BODY" | jq -r '.id // "N/A"')
-                  COMMENT_ID=$(echo "$RESPONSE_BODY" | jq -r '.comments[0].id // "N/A"')
-                  echo "📌 Thread ID: $THREAD_ID"
-                  echo "💬 Comment ID: $COMMENT_ID"
-              fi
-              
-              # Build PR URL
-              PR_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_git/$REPOSITORY/pullrequest/$PR_ID"
-              echo "🔗 View comment at: $PR_URL"
-              echo "🎉 Hardcoded API integration test completed successfully!"
-              ;;
-          000|"")
-              echo "❌ HARDCODED TEST FAILED: No HTTP response (000 or empty)"
-              echo "Response body: $RESPONSE_BODY"
-              ;;
-          *)
-              echo "⚠️ HARDCODED TEST: Unexpected HTTP code: $HTTP_CODE"
-              echo "Response body (first 300 chars): $(echo "$RESPONSE_BODY" | head -c 300)"
-              ;;
-      esac
-      
-      exit 0
-    displayName: 💬 Direct API Test Comment
-    env:
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-
-  - bash: |
-      echo "🔍 GET PR DIFFERENCES"
-      echo "===================="
-      echo ""
-      
-      # Check if script exists
-      if [ ! -f "./scripts/get-pr-diff.sh" ]; then
-        echo "❌ ERROR: Script get-pr-diff.sh not found"
-        ls -la ./scripts/
-        exit 1
-      fi
-      
-      # Check if PAT is available
-      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "❌ CRITICAL: AZURE_DEVOPS_EXT_PAT is not configured"
-        echo "📝 Configure the PAT in the pipeline variables"
-        exit 1
-      fi
       
       # Execute the script
       echo "📡 Running get-pr-diff.sh..."
@@ -205,16 +90,6 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "📁 DOWNLOAD MODIFIED FILES"
-      echo "========================="
-      echo ""
-      
-      # Check if script exists
-      if [ ! -f "./scripts/download-pr-files.sh" ]; then
-        echo "❌ ERROR: Script download-pr-files.sh not found"
-        exit 1
-      fi
-      
       # Check if diff file exists
       if [ ! -f "$(DIFF_FILE)" ]; then
         echo "❌ ERROR: Diff file not found: $(DIFF_FILE)"
@@ -355,24 +230,12 @@ steps:
   - bash: |
       echo "💬 PUBLISH COMMENT ON PR"
       echo "======================="
-      echo ""
-      
-      # Check if script exists
-      if [ ! -f "./scripts/post-pr-comment.sh" ]; then
-        echo "❌ ERROR: Script post-pr-comment.sh not found"
-        exit 1
-      fi
-      
-      # Check if comment file exists
-      if [ ! -f "$(COMMENT_FILE)" ]; then
-        echo "❌ ERROR: Comment file not found: $(COMMENT_FILE)"
-        exit 1
-      fi
+      echo ""  
       
       # Extract repository information
       REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
       ORG=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $2}')
-      PROJECT=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $3}' | sed 's/%20/ /g')
+      PROJECT=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $3}' | sed 's/%20/ /g' | sed 's/ /%20/g')
       REPO=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $5}')
       PR_ID="$(System.PullRequest.PullRequestId)"
       
@@ -382,58 +245,15 @@ steps:
       echo "  - Repository: $REPO"
       echo "  - PR ID: $PR_ID"
       
-      # Debug PAT availability (without exposing the token)
-      if [ -z "$(AZURE_DEVOPS_EXT_PAT)" ]; then
-        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT is not set"
-        exit 1
-      else
-        echo "✅ PAT is available (length: ${#AZURE_DEVOPS_EXT_PAT} chars)"
-      fi
-      
-      # Test API connectivity
-      echo "🌐 Testing Azure DevOps API connectivity..."
-      TEST_URL="https://dev.azure.com/$ORG/$PROJECT/_apis/git/repositories/$REPO"
-      TEST_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
-        -H "Authorization: Basic $(printf "%s:" "$(AZURE_DEVOPS_EXT_PAT)" | base64)" \
-        -H "Accept: application/json" \
-        "$TEST_URL?api-version=7.2-preview.1" || echo "CURL_FAILED")
-      
-      if [[ "$TEST_RESPONSE" == *"CURL_FAILED"* ]]; then
-        echo "⚠️  Network connectivity test failed"
-      else
-        TEST_CODE=$(echo "$TEST_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
-        echo "📡 API test response: $TEST_CODE"
-      fi
-      
-      # Execute the publishing script
+
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
-        "$(COMMENT_FILE)" \
+        "$(ANALYSIS_DIR)/source/pr-comment.md" \
         "$ORG" \
         "$PROJECT" \
         "$REPO" \
         "$PR_ID" \
-        "$(AZURE_DEVOPS_EXT_PAT)"
-      
-      SCRIPT_EXIT_CODE=$?
-      if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
-        echo "✅ Comment published successfully on PR #$PR_ID"
-      else
-        echo "❌ ERROR: Failed to publish comment (exit code: $SCRIPT_EXIT_CODE)"
-        echo "ℹ️  Analysis is available in artifacts"
-        
-        # Additional debugging
-        echo ""
-        echo "🔍 Debugging information:"
-        echo "  - Organization: $ORG"
-        echo "  - Project: $PROJECT" 
-        echo "  - Repository: $REPO"
-        echo "  - PR ID: $PR_ID"
-        echo "  - Comment file exists: $([ -f "$(COMMENT_FILE)" ] && echo "Yes" || echo "No")"
-        echo "  - Comment file size: $([ -f "$(COMMENT_FILE)" ] && du -h "$(COMMENT_FILE)" | cut -f1 || echo "N/A")"
-        
-        # Don't fail the pipeline, only the comment
-      fi
+        "$(AZURE_DEVOPS_EXT_PAT)"     
       
     displayName: 💬 Publish Comment on PR
     env:
