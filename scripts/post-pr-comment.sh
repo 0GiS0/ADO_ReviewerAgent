@@ -21,12 +21,9 @@ echo "  - PAT: $PAT"
 
 API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads?api-version=7.1"
 
-COMMENT_CONTENT=$(cat "$COMMENT_FILE")
-ESCAPED_CONTENT=$(printf '%s' "$COMMENT_CONTENT" | \
-    sed 's/\\/\\\\/g' | \
-    sed 's/"/\\"/g' | \
-    awk '{printf "%s\\n", $0}' | \
-    sed 's/\\n$//')
+echo "Mostrar el archivo de comentario:"
+cat "$COMMENT_FILE"
+
 
 PAYLOAD_FILE="/tmp/pr-comment-payload-$$.json"
 cat > "$PAYLOAD_FILE" << EOF
@@ -34,7 +31,7 @@ cat > "$PAYLOAD_FILE" << EOF
   "comments": [
     {
       "parentCommentId": 0,
-      "content": "$ESCAPED_CONTENT",
+      "content": "$(cat "$COMMENT_FILE")",
       "commentType": 1
     }
   ],
