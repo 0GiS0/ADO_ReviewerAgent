@@ -78,10 +78,10 @@ steps:
       echo ""
       echo "🌐 Llamando a Azure DevOps API..."
       
-      # Realizar la llamada a la API usando curl con System.AccessToken
-      echo "🔐 Usando System.AccessToken para autenticación..."
+      # Realizar la llamada a la API usando curl con PAT
+      echo "🔐 Usando AZURE_DEVOPS_EXT_PAT para autenticación..."
       curl -s \
-        -H "Authorization: Basic $(echo -n ":$(System.AccessToken)" | base64)" \
+        -H "Authorization: Basic $(echo -n ":$AZURE_DEVOPS_EXT_PAT" | base64)" \
         -H "Content-Type: application/json" \
         "$FULL_URL" > "$(DIFF_OUTPUT).json"
       
