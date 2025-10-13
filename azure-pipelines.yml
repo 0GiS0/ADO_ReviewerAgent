@@ -147,13 +147,13 @@ steps:
 
   - template: templates/run-script.yml
     parameters:
-      script: analyze-changes-full-diff.sh
-      displayName: 🔍 Analyze Changes with Copilot (Full Diff)
+      script: analyze-pr-diff.sh
+      displayName: 🔍 Analyze Branch Diff with Copilot
       env:
         SYSTEM_COLLECTIONURI: $(System.CollectionUri)
         SYSTEM_TEAMPROJECT: $(System.TeamProject)
-        BUILD_REPOSITORY_ID: $(SOURCE_REPO_ID)
-        BUILD_REPOSITORY_NAME: $(SOURCE_REPO_NAME)
+        SOURCE_REPO_ID: $(SOURCE_REPO_ID)
+        SOURCE_REPO_NAME: $(SOURCE_REPO_NAME)
         SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
         SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
         SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
