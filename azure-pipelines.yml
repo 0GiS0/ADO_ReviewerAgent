@@ -83,29 +83,6 @@ steps:
       args: '"$(DIFF_FILE)" "$(System.PullRequest.SourceRepositoryUri)" "$(System.PullRequest.SourceBranch)" "$(System.PullRequest.TargetBranch)" "$(AZURE_DEVOPS_EXT_PAT)" "$(ANALYSIS_DIR)"'
       displayName: 📁 Download Modified Files
 
-  - bash: |
-      # Check if there are files to analyze
-      if [ ! -d "$(ANALYSIS_DIR)/source" ] || [ -z "$(ls -A "$(ANALYSIS_DIR)/source" 2>/dev/null)" ]; then
-        echo "⚠️  No files to analyze, creating empty comment"
-        mkdir -p "$(ANALYSIS_DIR)/source"
-        cat > "$(ANALYSIS_DIR)/source/pr-comment.md" << EOF
-      # 📝 Pull Request Analysis
-      
-      ⚠️  **No files found to analyze in this PR.**
-      
-      This can happen if:
-      - The PR only contains file deletions
-      - Files could not be downloaded
-      - The PR is empty
-      
-      **Status**: No files to review
-      **Recommendation**: Manually verify the PR content
-      EOF
-      else
-        echo "🤖 Running Copilot analysis..."
-      fi
-    displayName: 🔍 Check Files to Analyze
-
   - template: templates/run-script.yml
     parameters:
       script: analyze-with-copilot.sh

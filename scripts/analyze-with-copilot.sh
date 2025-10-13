@@ -4,7 +4,7 @@ echo "🤖 PR Analysis with GitHub Copilot CLI"
 echo "======================================="
 
 # Parameters
-PR_DIRECTORY="${1:-.}"
+PR_DIRECTORY="$1"
 
 echo "📋 Analysis configuration:"
 echo "  - PR Directory: $PR_DIRECTORY"
@@ -67,7 +67,8 @@ MODEL="${MODEL:-claude-sonnet-4}"
 echo "🤖 Using model: $MODEL"
 
 # Execute copilot in non-interactive mode to generate the file
-copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --add-dir "$PR_DIRECTORY" --model "$MODEL"
+cd "$PR_DIRECTORY"
+copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --model "$MODEL"
 
 # Verify the file was created by Copilot
 cat "./pr-comment.md"
