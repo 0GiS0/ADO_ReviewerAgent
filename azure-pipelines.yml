@@ -66,9 +66,56 @@ steps:
       fi
     displayName: 📦 Install Copilot CLI
 
+  - bash: |
+      echo "📦 Installing jq for JSON processing..."
+      if ! command -v jq &> /dev/null; then
+        sudo apt-get update -qq
+        sudo apt-get install -y jq
+        echo "✅ jq installed successfully"
+      else
+        echo "✅ jq already available"
+      fi
+      jq --version
+    displayName: 📦 Install jq
 
   - bash: |
-      echo "🔍 STEP 1: Getting PR differences..."
+      echo "🧪 API CONNECTIVITY TEST"
+      echo "======================="
+      echo ""
+      
+      # Extract repository information for testing
+      REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
+      ORG=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $2}')
+      PROJECT=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $3}' | sed 's/%20/ /g')
+      REPO=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $5}')
+      PR_ID="$(System.PullRequest.PullRequestId)"
+      
+      echo "📋 Test configuration:"
+      echo "  - Organization: $ORG"
+      echo "  - Project: $PROJECT"
+      echo "  - Repository: $REPO"
+      echo "  - PR ID: $PR_ID"
+      echo ""
+      
+      # Create a simple test comment first
+      echo "🧪 Creating test comment to verify API connectivity..."
+      ./scripts/test-pr-comment.sh "$ORG" "$PROJECT" "$REPO" "$PR_ID" "$(AZURE_DEVOPS_EXT_PAT)"
+      
+      if [ $? -eq 0 ]; then
+        echo "✅ API connectivity test passed!"
+      else
+        echo "❌ API connectivity test failed - aborting pipeline"
+        exit 1
+      fi
+      
+    displayName: 🧪 Test API Connectivity
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+
+  - bash: |
+      echo "🔍 GET PR DIFFERENCES"
+      echo "===================="
+      echo ""
       
       # Check if script exists
       if [ ! -f "./scripts/get-pr-diff.sh" ]; then
@@ -106,7 +153,9 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "📁 STEP 2: Downloading modified files..."
+      echo "📁 DOWNLOAD MODIFIED FILES"
+      echo "========================="
+      echo ""
       
       # Check if script exists
       if [ ! -f "./scripts/download-pr-files.sh" ]; then
@@ -143,7 +192,34 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "🤖 STEP 3: Analyzing files with GitHub Copilot CLI..."      
+      echo "🤖 ANALYZE WITH GITHUB COPILOT CLI"
+      echo "=================================="
+      echo ""
+      
+      # Check if script exists
+      if [ ! -f "./scripts/analyze-with-copilot.sh" ]; then
+        echo "❌ ERROR: Script analyze-with-copilot.sh not found"
+        exit 1
+      fi
+      
+      # Check if there are files to analyze
+      if [ ! -d "$(ANALYSIS_DIR)/source" ] || [ -z "$(ls -A "$(ANALYSIS_DIR)/source" 2>/dev/null)" ]; then
+        echo "⚠️  No files to analyze, creating empty comment"
+        cat > "$(COMMENT_FILE)" << EOF
+      # 📝 Pull Request Analysis
+      
+      ⚠️  **No files found to analyze in this PR.**
+      
+      This can happen if:
+      - The PR only contains file deletions
+      - Files could not be downloaded
+      - The PR is empty
+      
+      **Status**: No files to review
+      **Recommendation**: Manually verify the PR content
+      EOF
+        exit 0
+      fi
       
       # Execute analysis with Copilot
       echo "🔍 Running analyze-with-copilot.sh..."
@@ -152,10 +228,10 @@ steps:
         "$(COMMENT_FILE)"
       
       # Check if analysis file was created successfully (regardless of exit code)
-      if [ -f "$(ANALYSIS_DIR)/source/pr-comment.md" ] && [ -s "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
+      if [ -f "$(COMMENT_FILE)" ] && [ -s "$(COMMENT_FILE)" ]; then
         echo "✅ Analysis completed successfully"
-        echo "📊 Comment size: $(du -h "$(ANALYSIS_DIR)/source/pr-comment.md" | cut -f1)"
-        echo "📄 Comment lines: $(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")"
+        echo "📊 Comment size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
+        echo "📄 Comment lines: $(wc -l < "$(COMMENT_FILE)")"
       else
         echo "⚠️  Analysis failed, creating error comment"
         cat > "$(COMMENT_FILE)" << EOF
@@ -213,12 +289,19 @@ steps:
     displayName: 📄 Display Generated Analysis
 
   - bash: |
-      echo "🤖 STEP 4: Publishing comment on PR..."
-
+      echo "💬 PUBLISH COMMENT ON PR"
+      echo "======================="
+      echo ""
+      
+      # Check if script exists
+      if [ ! -f "./scripts/post-pr-comment.sh" ]; then
+        echo "❌ ERROR: Script post-pr-comment.sh not found"
+        exit 1
+      fi
       
       # Check if comment file exists
-      if [ ! -f "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
-        echo "❌ ERROR: Comment file not found: $(ANALYSIS_DIR)/source/pr-comment.md"
+      if [ ! -f "$(COMMENT_FILE)" ]; then
+        echo "❌ ERROR: Comment file not found: $(COMMENT_FILE)"
         exit 1
       fi
       

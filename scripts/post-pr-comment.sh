@@ -65,9 +65,23 @@ COMMENT_CONTENT=$(cat "$COMMENT_FILE")
 COMMENT_SIZE=$(wc -c < "$COMMENT_FILE")
 echo "📊 Tamaño del comentario: $COMMENT_SIZE bytes"
 
-# Crear el payload JSON
-# Escapar caracteres especiales para JSON
-ESCAPED_CONTENT=$(echo "$COMMENT_CONTENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+# Crear el payload JSON usando jq para escapar correctamente
+# Verificar si jq está disponible
+if command -v jq &> /dev/null; then
+    echo "🔧 Using jq for JSON escaping..."
+    ESCAPED_CONTENT=$(echo "$COMMENT_CONTENT" | jq -Rs .)
+    ESCAPED_CONTENT=${ESCAPED_CONTENT#\"} # Remove leading quote
+    ESCAPED_CONTENT=${ESCAPED_CONTENT%\"} # Remove trailing quote
+else
+    echo "⚠️  jq not available, using manual escaping..."
+    # Escapar caracteres especiales para JSON manualmente
+    ESCAPED_CONTENT=$(printf '%s' "$COMMENT_CONTENT" | \
+        sed 's/\\/\\\\/g' | \
+        sed 's/"/\\"/g' | \
+        sed 's/	/\\t/g' | \
+        awk '{printf "%s\\n", $0}' | \
+        sed 's/\\n$//')
+fi
 
 # Crear archivo temporal con el payload
 PAYLOAD_FILE="/tmp/pr-comment-payload-$$.json"
