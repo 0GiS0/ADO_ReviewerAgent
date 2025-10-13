@@ -63,11 +63,21 @@ steps:
     parameters:
       script: get-changed-files.sh
       displayName: 📋 Get Changed Files
+      env:
+        SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+        SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
+        BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
 
   - template: templates/run-script.yml
     parameters:
       script: analyze-changes.sh
       displayName: 🔍 Analyze Changes with Copilot
+      env:
+        SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
+        SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
+        SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+        BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
+        REVIEW_OUTPUT: $(REVIEW_OUTPUT)
 
   - bash: |
       echo "=== REPORTE DE REVISIÓN ==="

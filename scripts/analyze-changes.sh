@@ -9,10 +9,19 @@ if ! command -v copilot &> /dev/null; then
     exit 1
 fi
 
-# Obtener información de la PR
-TARGET_BRANCH=${System.PullRequest.TargetBranch#refs/heads/}
-SOURCE_BRANCH=${System.PullRequest.SourceBranch#refs/heads/}
-PR_ID=$(System.PullRequest.PullRequestId)
+# Obtener información de la PR desde variables de entorno
+TARGET_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
+SOURCE_BRANCH="${SYSTEM_PULLREQUEST_SOURCEBRANCH#refs/heads/}"
+PR_ID="$SYSTEM_PULLREQUEST_PULLREQUESTID"
+
+# Validar que las variables existen
+if [ -z "$TARGET_BRANCH" ] || [ -z "$SOURCE_BRANCH" ] || [ -z "$PR_ID" ]; then
+    echo "❌ Error: Variables de PR no configuradas"
+    echo "TARGET_BRANCH: $TARGET_BRANCH"
+    echo "SOURCE_BRANCH: $SOURCE_BRANCH"
+    echo "PR_ID: $PR_ID"
+    exit 1
+fi
 
 echo "📋 PR Information:"
 echo "  - PR #$PR_ID"
@@ -90,7 +99,7 @@ copilot -p "$PROMPT" \
     --log-dir "$LOG_DIR" \
     --model "${MODEL:-claude-sonnet-4}" > "$LOG_DIR/copilot_raw_output.md" 2>&1 || {
     echo "⚠️ Error executing Copilot CLI"
-    echo "**Analysis Error:** Could not complete Copilot analysis. Check logs in $LOG_DIR" > $(REVIEW_OUTPUT)
+    echo "**Analysis Error:** Could not complete Copilot analysis. Check logs in $LOG_DIR" > "$REVIEW_OUTPUT"
     exit 1
 }
 
@@ -100,7 +109,7 @@ cp "$LOG_DIR/copilot_raw_output.md" "$LOG_DIR/copilot_recommendations.md"
 # Crear el reporte final resumido
 echo "📄 Generating final report..."
 
-cat > $(REVIEW_OUTPUT) << EOF
+cat > "$REVIEW_OUTPUT" << EOF
 # PR Review Report
 
 **Pull Request:** #$PR_ID
@@ -117,10 +126,10 @@ cat > $(REVIEW_OUTPUT) << EOF
 EOF
 
 # Agregar el análisis de Copilot
-cat "$LOG_DIR/copilot_raw_output.md" >> $(REVIEW_OUTPUT)
+cat "$LOG_DIR/copilot_raw_output.md" >> "$REVIEW_OUTPUT"
 
 # Agregar footer
-cat >> $(REVIEW_OUTPUT) << EOF
+cat >> "$REVIEW_OUTPUT" << EOF
 
 ---
 
@@ -139,7 +148,7 @@ EOF
 echo ""
 echo "✅ Analysis completed successfully"
 echo "📊 Files reviewed: $FILE_COUNT"
-echo "📄 Report saved to: $(REVIEW_OUTPUT)"
+echo "📄 Report saved to: $REVIEW_OUTPUT"
 echo "📄 Recommendations for parsing saved to: $LOG_DIR/copilot_recommendations.md"
 
 # Limpiar archivos temporales
