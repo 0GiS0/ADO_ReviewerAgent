@@ -57,35 +57,12 @@ echo "📊 Encontrados archivos para analizar: $TOTAL_FILES"
 echo ""
 
 # Crear el prompt para Copilot
-ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y crea un archivo markdown llamado pr-comment.md en el directorio actual que contenga un comentario de revisión de Pull Request.
-
-El archivo debe incluir:
-
-## 🔍 Análisis de Calidad de Código
-- Problemas de legibilidad y mantenibilidad
-- Violaciones de buenas prácticas
-- Mejoras sugeridas en la arquitectura
-- Problemas de rendimiento
-
-## 🔒 Análisis de Seguridad
-- Vulnerabilidades identificadas
-- Riesgos de seguridad potenciales
-- Configuraciones inseguras
-- Exposición de datos sensibles
-
-## 📋 Recomendaciones Específicas
-Para cada problema encontrado:
-- Descripción clara del problema
-- Impacto (🔴 Alto, 🟡 Medio, 🟢 Bajo)
-- Solución recomendada
-- Código de ejemplo si aplica
-
-## ✅ Veredicto Final
-- Puntuación de calidad (1-10)
-- Puntuación de seguridad (1-10)
-- Recomendación: APROBAR ✅ | SOLICITAR CAMBIOS ❌ | COMENTARIOS MENORES 💬
-
-El contenido del archivo debe ser SOLO el comentario de revisión, sin metadata ni información técnica del análisis. Crea el archivo directamente."
+ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y genera un archivo markdown llamado pr-comment.md con un resumen muy breve para revisión de Pull Request:
+- Si hay problemas de severidad ALTA o MEDIA, enuméralos brevemente (máximo 1 línea por problema, solo descripción y severidad).
+- Si no hay problemas de severidad alta o media, escribe simplemente: '✅ El archivo está bien, no se detectaron problemas relevantes.'
+- No incluyas problemas de severidad baja ni recomendaciones menores.
+- No incluyas puntuaciones, ni veredictos extensos, ni secciones adicionales.
+- El archivo debe ser lo más corto y directo posible, solo lo esencial para el revisor."
 
 
 

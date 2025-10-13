@@ -240,6 +240,7 @@ steps:
       PR_ID="$(System.PullRequest.PullRequestId)"
       
       echo "🔍 Repository information:"
+      echo "  - Markdown file: $(ANALYSIS_DIR)/source/pr-comment.md"
       echo "  - Organization: $ORG"
       echo "  - Project: $PROJECT"
       echo "  - Repository: $REPO"
