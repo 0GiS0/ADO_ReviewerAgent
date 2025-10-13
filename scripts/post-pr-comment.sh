@@ -46,6 +46,11 @@ cat > "$PAYLOAD_FILE" << EOF
 }
 EOF
 
+echo "Contenido del payload:"
+cat "$PAYLOAD_FILE"
+echo "📊 Payload size: $(wc -c < "$PAYLOAD_FILE") bytes"
+
+
 AUTH_HEADER=$(printf "%s:" "$PAT" | base64)
 
 HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \

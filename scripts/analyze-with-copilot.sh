@@ -62,7 +62,9 @@ ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y genera un archi
 - Si no hay problemas de severidad alta o media, escribe simplemente: '✅ El archivo está bien, no se detectaron problemas relevantes.'
 - No incluyas problemas de severidad baja ni recomendaciones menores.
 - No incluyas puntuaciones, ni veredictos extensos, ni secciones adicionales.
-- El archivo debe ser lo más corto y directo posible, solo lo esencial para el revisor."
+- El archivo debe ser lo más corto y directo posible, solo lo esencial para el revisor.
+- Siempre se tiene que mencionar el nombre del archivo analizado.
+- Si hay alguna mejora relacionada se debe incluir un snippet del código que no está bien.
 
 
 
