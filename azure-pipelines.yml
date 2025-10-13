@@ -1,6 +1,12 @@
 # Pipeline Simplificada - Obtener Diferencias de PR
-# IMPORTANTE: Debes crear una variable secreta llamada 'AZURE_DEVOPS_EXT_PAT' 
-# en la configuración del pipeline con tu Personal Access Token
+# 
+# ⚠️  CONFIGURACIÓN REQUERIDA:
+# 1. Ve a tu pipeline en Azure DevOps > Edit > Variables
+# 2. Agrega nueva variable: AZURE_DEVOPS_EXT_PAT
+# 3. Marca "Keep this value secret" ✅
+# 4. Ingresa tu Personal Access Token (PAT)
+# 5. El PAT debe tener permisos de "Code (read)" 
+#
 trigger: none
 
 pr:
@@ -55,17 +61,33 @@ steps:
       
       # Verificar que el PAT esté disponible
       if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
-        echo "📝 SOLUCIÓN: Crea una variable secreta llamada 'AZURE_DEVOPS_EXT_PAT' en el pipeline"
-        echo "   1. Ve a Pipeline > Edit > Variables"
-        echo "   2. Agrega nueva variable: AZURE_DEVOPS_EXT_PAT"
-        echo "   3. Marca como 'Keep this value secret'"
-        echo "   4. Ingresa tu Personal Access Token"
+        echo "❌ CRÍTICO: AZURE_DEVOPS_EXT_PAT no está configurado"
+        echo ""
+        echo "📝 SOLUCIÓN PASO A PASO:"
+        echo "   1. Ve a tu pipeline en Azure DevOps"
+        echo "   2. Haz clic en 'Edit' (Editar)"
+        echo "   3. Haz clic en 'Variables' en la esquina superior derecha"
+        echo "   4. Haz clic en 'New variable' (Nueva variable)"
+        echo "   5. Nombre: AZURE_DEVOPS_EXT_PAT"
+        echo "   6. ✅ Marca 'Keep this value secret'"
+        echo "   7. Valor: Tu Personal Access Token"
+        echo "   8. Guarda y vuelve a ejecutar el pipeline"
+        echo ""
+        echo "🔑 Para crear un PAT:"
+        echo "   • Ve a Azure DevOps > User Settings > Personal access tokens"
+        echo "   • Crea nuevo token con permisos 'Code (read)'"
+        echo ""
         exit 1
       fi
       
-      # Debug adicional del PAT (sin mostrar valor real)
-      echo "🔍 PAT verificado - longitud: ${#AZURE_DEVOPS_EXT_PAT} caracteres"
+      # Verificar longitud mínima del PAT
+      if [ ${#AZURE_DEVOPS_EXT_PAT} -lt 10 ]; then
+        echo "❌ ERROR: PAT parece inválido (muy corto: ${#AZURE_DEVOPS_EXT_PAT} caracteres)"
+        echo "📝 Un PAT válido suele tener 52+ caracteres"
+        exit 1
+      fi
+      
+      echo "🔍 PAT verificado - longitud: ${#AZURE_DEVOPS_EXT_PAT} caracteres ✅"
       
       echo "✅ Todas las verificaciones pasaron, ejecutando script..."
       
@@ -77,7 +99,7 @@ steps:
         "$(System.PullRequest.SourceRepositoryUri)" \
         "$(System.PullRequest.SourceBranch)" \
         "$(System.PullRequest.TargetBranch)" \
-        "$(AZURE_DEVOPS_EXT_PAT)" \
+        "$AZURE_DEVOPS_EXT_PAT" \
         "$(DIFF_OUTPUT).json"
       
       SCRIPT_EXIT_CODE=$?
