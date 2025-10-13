@@ -67,94 +67,98 @@ steps:
     displayName: 📦 Install Copilot CLI
 
   - bash: |
-      echo "💬 DIRECT API TEST COMMENT"
-      echo "=============================="
+      echo "💬 HARDCODED API TEST (exact local values)"
+      echo "=========================================="
       echo ""
       if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "❌ PAT not available, skipping direct test"
+        echo "❌ PAT not available, skipping hardcoded test"
         exit 0
       fi
 
-      COLLECTION_URI="$(System.CollectionUri)"  # e.g. https://dev.azure.com/myorg/
-      ORG=$(echo "$COLLECTION_URI" | awk -F'/' '{print $4}')
-      PROJECT="$(System.TeamProject)"
-      REPO="$(Build.Repository.Name)"
-      PR_ID="$(System.PullRequest.PullRequestId)"
-
-      if [ -z "$PR_ID" ]; then
-        echo "⚠️ No PR context (PR_ID empty). Skipping."
-        exit 0
-      fi
+      # HARDCODED values exactly as used locally (except PAT)
+      ORGANIZATION="returngisorg"
+      PROJECT="GitHub Copilot CLI"
+      REPOSITORY="ReviewerAgent"
+      PR_ID="113"
 
       PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
-      API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/pullRequests/$PR_ID/threads?api-version=7.1"
-      echo "ORG: $ORG"
-      echo "PROJECT: $PROJECT"
-      echo "REPO: $REPO"
-      echo "PR_ID: $PR_ID"
-      echo "API_URL: $API_URL"
+      API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads?api-version=7.1"
+      
+      echo "🔧 HARDCODED Configuration:"
+      echo "  - Organization: $ORGANIZATION"
+      echo "  - Project: $PROJECT"
+      echo "  - Repository: $REPOSITORY"
+      echo "  - PR ID: $PR_ID"
+      echo "  - API URL: $API_URL"
 
-      TEST_COMMENT="🚀 Direct pipeline test comment ($(date -u '+%Y-%m-%d %H:%M:%S UTC'))\nValidando conectividad directa sin script intermedio."
-      ESCAPED=$(printf '%s' "$TEST_COMMENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-      PAYLOAD="{\n  \"comments\": [ { \"parentCommentId\": 0, \"content\": \"$ESCAPED\", \"commentType\": 1 } ],\n  \"status\": 1\n}"
-      AUTH=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64)
+      # Simple hardcoded test comment (single line to avoid YAML issues)
+      TEST_COMMENT="🤖 Hardcoded pipeline test comment - $(date -u '+%Y-%m-%d %H:%M:%S UTC') - Testing exact same API call as local test script"
 
-      echo "Posting direct test comment..."
-      TMP_BODY=$(mktemp)
-      TMP_HEADERS=$(mktemp)
-      TMP_ERR=$(mktemp)
-      # Perform request without verbose first
-      curl -sS -D "$TMP_HEADERS" \
-        --connect-timeout 20 --max-time 40 \
+      echo "📝 Test comment: $TEST_COMMENT"
+      echo "� Test comment length: $(echo "$TEST_COMMENT" | wc -c) characters"
+
+      # Escape content for JSON using exact method from test-pr-comment.sh
+      ESCAPED_CONTENT=$(echo "$TEST_COMMENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+
+      # Create JSON payload using printf to avoid heredoc YAML conflicts
+      PAYLOAD_FILE="/tmp/hardcoded-test-payload-$$.json"
+      printf '{\n  "comments": [\n    {\n      "parentCommentId": 0,\n      "content": "%s",\n      "commentType": 1\n    }\n  ],\n  "status": 1\n}' "$ESCAPED_CONTENT" > "$PAYLOAD_FILE"
+
+      echo "📊 Payload size: $(wc -c < "$PAYLOAD_FILE") bytes"
+
+      # Generate authentication header
+      AUTH_HEADER=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64)
+      echo "� Auth header generated (length: ${#AUTH_HEADER} characters)"
+
+      # Make API call using EXACT same method as test-pr-comment.sh
+      echo "🚀 Making hardcoded test API call..."
+      HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+        --connect-timeout 30 \
+        --max-time 60 \
         -X POST \
-        -H "Authorization: Basic $AUTH" \
+        -H "Authorization: Basic $AUTH_HEADER" \
         -H "Content-Type: application/json" \
         -H "Accept: application/json" \
-        -d "$PAYLOAD" \
-        "$API_URL" -o "$TMP_BODY" 2> "$TMP_ERR"
-      CURL_EXIT=$?
-      HTTP_LINE=$(head -1 "$TMP_HEADERS" || true)
-      if echo "$HTTP_LINE" | grep -qi '^HTTP'; then
-        CODE=$(echo "$HTTP_LINE" | awk '{print $2}')
-      else
-        CODE="000"
-      fi
-      echo "HTTP line: $HTTP_LINE"
-      echo "Curl exit code: $CURL_EXIT"
-      echo "Derived HTTP code: $CODE"
-      echo "Response body size: $(wc -c < "$TMP_BODY" 2>/dev/null) bytes"
-      echo "Headers (sanitized):"
-      sed 's/Authorization: Basic .*/Authorization: Basic ***REDACTED***/I' "$TMP_HEADERS" | head -25
-      if [ "$CODE" = "000" ]; then
-        echo "❌ No HTTP status received. Gathering diagnostics..."
-        echo "Curl stderr (first 40 lines):"; head -40 "$TMP_ERR"
-        echo "DNS resolution test:"; getent hosts dev.azure.com || nslookup dev.azure.com || dig +short dev.azure.com || true
-        echo "Outbound HEAD test (connectionData endpoint):"
-        curl -I -sS --connect-timeout 10 "https://dev.azure.com/$ORG/_apis/connectionData" -H "Authorization: Basic $AUTH" | sed 's/Authorization: Basic .*/Authorization: Basic ***REDACTED***/' || true
-        echo "Simple GET to connectionData (status only):"
-        curl -s -o /dev/null -w 'connData:%{http_code}\n' --connect-timeout 10 "https://dev.azure.com/$ORG/_apis/connectionData" -H "Authorization: Basic $AUTH" || true
-        echo "Proxy vars:"; echo "http_proxy=$http_proxy https_proxy=$https_proxy no_proxy=$no_proxy"
-        echo "TLS handshake probe (openssl):"; echo | openssl s_client -connect dev.azure.com:443 -servername dev.azure.com 2>/dev/null | head -15
-        echo "Interpreting curl exit code $CURL_EXIT ..."
-        case $CURL_EXIT in
-          6) echo "→ DNS lookup failed";;
-          7) echo "→ Failed to connect to host (network/firewall)";;
-          28) echo "→ Operation timeout (network latency/firewall)";;
-          35) echo "→ TLS handshake failure";;
-          52) echo "→ Empty reply from server";;
-          56) echo "→ Network read error";;
-          60) echo "→ SSL certificate problem (untrusted CA)";;
-          *) echo "→ Generic curl code ($CURL_EXIT), see man curl";;
-        esac
-      elif [ "$CODE" = "401" ]; then
-        echo "⚠️ Unauthorized (401) in direct test." 
-      elif [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
-        echo "✅ Direct API call succeeded"
-      else
-        echo "⚠️ Direct API call returned code $CODE"; head -40 "$TMP_BODY"
-      fi
-      # Clean temp files
-      rm -f "$TMP_BODY" "$TMP_HEADERS" "$TMP_ERR"
+        -d @"$PAYLOAD_FILE" \
+        "$API_URL")
+
+      # Parse response exactly like test-pr-comment.sh
+      HTTP_CODE=$(echo "$HTTP_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+      RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+
+      echo "📡 HTTP Response Code: $HTTP_CODE"
+
+      # Clean up
+      rm -f "$PAYLOAD_FILE"
+
+      # Process response like test-pr-comment.sh
+      case "$HTTP_CODE" in
+          200|201)
+              echo "✅ HARDCODED TEST PASSED: Comment posted successfully!"
+              
+              # Try to extract thread ID if jq is available
+              if command -v jq &> /dev/null && echo "$RESPONSE_BODY" | jq empty 2>/dev/null; then
+                  THREAD_ID=$(echo "$RESPONSE_BODY" | jq -r '.id // "N/A"')
+                  COMMENT_ID=$(echo "$RESPONSE_BODY" | jq -r '.comments[0].id // "N/A"')
+                  echo "📌 Thread ID: $THREAD_ID"
+                  echo "💬 Comment ID: $COMMENT_ID"
+              fi
+              
+              # Build PR URL
+              PR_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_git/$REPOSITORY/pullrequest/$PR_ID"
+              echo "🔗 View comment at: $PR_URL"
+              echo "🎉 Hardcoded API integration test completed successfully!"
+              ;;
+          000|"")
+              echo "❌ HARDCODED TEST FAILED: No HTTP response (000 or empty)"
+              echo "Response body: $RESPONSE_BODY"
+              ;;
+          *)
+              echo "⚠️ HARDCODED TEST: Unexpected HTTP code: $HTTP_CODE"
+              echo "Response body (first 300 chars): $(echo "$RESPONSE_BODY" | head -c 300)"
+              ;;
+      esac
+      
       exit 0
     displayName: 💬 Direct API Test Comment
     env:
