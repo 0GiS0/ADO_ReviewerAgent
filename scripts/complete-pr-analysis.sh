@@ -88,10 +88,18 @@ echo "🤖 PASO 2: Analizando archivos con GitHub Copilot CLI"
 echo "====================================================="
 
 SOURCE_DIR="$OUTPUT_DIR/source"
-ANALYSIS_FILE="$OUTPUT_DIR/copilot-analysis.md"
+COMMENTS_DIR="$OUTPUT_DIR/pr-comments"
 
-if ! "$SCRIPT_DIR/analyze-with-copilot.sh" "$SOURCE_DIR" "$ANALYSIS_FILE"; then
+if ! "$SCRIPT_DIR/analyze-with-copilot.sh" "$SOURCE_DIR" "$COMMENTS_DIR"; then
     echo "⚠️  El análisis con Copilot tuvo problemas, pero continuando..."
+fi
+
+# Verificar que se generaron archivos de comentarios
+if [ -d "$COMMENTS_DIR" ] && [ -n "$(ls -A "$COMMENTS_DIR"/*.md 2>/dev/null)" ]; then
+    COMMENT_COUNT=$(ls -1 "$COMMENTS_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    echo "✅ Se generaron $COMMENT_COUNT archivos de comentarios en: $COMMENTS_DIR"
+else
+    echo "⚠️  No se generaron archivos de comentarios"
 fi
 
 # PASO 3: Generar análisis comparativo si hay archivos target

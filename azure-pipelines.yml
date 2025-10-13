@@ -113,7 +113,7 @@ steps:
   - template: templates/run-script.yml
     parameters:
       script: post-pr-comment.sh
-      args: '"$(ANALYSIS_DIR)/source/pr-comment.md" "$(PR_ORG)" "$(PR_PROJECT)" "$(PR_REPO)" "$(PR_NUM)" "$(AZURE_DEVOPS_EXT_PAT)"'
+      args: '"$(ANALYSIS_DIR)/source/pr-comments" "$(PR_ORG)" "$(PR_PROJECT)" "$(PR_REPO)" "$(PR_NUM)" "$(AZURE_DEVOPS_EXT_PAT)"'
       displayName: 💬 Publish Comment on PR
 
   - task: PublishBuildArtifacts@1
