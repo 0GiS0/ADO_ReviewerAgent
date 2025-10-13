@@ -67,6 +67,63 @@ steps:
     displayName: 📦 Install Copilot CLI
 
   - bash: |
+      echo "💬 DIRECT API TEST COMMENT"
+      echo "=============================="
+      echo ""
+      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
+        echo "❌ PAT not available, skipping direct test"
+        exit 0
+      fi
+
+      COLLECTION_URI="$(System.CollectionUri)"  # e.g. https://dev.azure.com/myorg/
+      ORG=$(echo "$COLLECTION_URI" | awk -F'/' '{print $4}')
+      PROJECT="$(System.TeamProject)"
+      REPO="$(Build.Repository.Name)"
+      PR_ID="$(System.PullRequest.PullRequestId)"
+
+      if [ -z "$PR_ID" ]; then
+        echo "⚠️ No PR context (PR_ID empty). Skipping."
+        exit 0
+      fi
+
+      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
+      API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/pullRequests/$PR_ID/threads?api-version=7.1"
+      echo "ORG: $ORG"
+      echo "PROJECT: $PROJECT"
+      echo "REPO: $REPO"
+      echo "PR_ID: $PR_ID"
+      echo "API_URL: $API_URL"
+
+      TEST_COMMENT="🚀 Direct pipeline test comment ($(date -u '+%Y-%m-%d %H:%M:%S UTC'))\nValidando conectividad directa sin script intermedio."
+      ESCAPED=$(printf '%s' "$TEST_COMMENT" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+      PAYLOAD="{\n  \"comments\": [ { \"parentCommentId\": 0, \"content\": \"$ESCAPED\", \"commentType\": 1 } ],\n  \"status\": 1\n}"
+      AUTH=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64)
+
+      echo "Posting direct test comment..."
+      RESPONSE=$(curl -s -w 'HTTPSTATUS:%{http_code}' \
+        --connect-timeout 30 --max-time 60 \
+        -X POST \
+        -H "Authorization: Basic $AUTH" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD" \
+        "$API_URL")
+      CODE=$(echo "$RESPONSE" | sed -n 's/.*HTTPSTATUS:\([0-9]*\).*/\1/p')
+      BODY=$(echo "$RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+      echo "Direct API HTTP code: $CODE"
+      if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
+        echo "✅ Direct API call succeeded"
+      elif [ "$CODE" = "000" ] || [ -z "$CODE" ]; then
+        echo "❌ Direct API call returned 000 (no HTTP response)"
+        echo "Body snippet:"; echo "$BODY" | head -c 300 || true
+      else
+        echo "⚠️ Direct API call returned code $CODE"; echo "$BODY" | head -c 300
+      fi
+      exit 0
+    displayName: 💬 Direct API Test Comment
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+
+  - bash: |
       echo "🔍 GET PR DIFFERENCES"
       echo "===================="
       echo ""
