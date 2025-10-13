@@ -64,7 +64,7 @@ For EACH file listed above, you must:
 
 📝 **Format for EACH analysis file:**
 
-# 🔬 \`$relative_path\` analysis
+# 🔬 $relative_path analysis
 
 Provide a comprehensive review of this file including:
 
