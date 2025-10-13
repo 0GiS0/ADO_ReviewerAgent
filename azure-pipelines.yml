@@ -20,8 +20,7 @@ variables:
     value: "$(Build.ArtifactStagingDirectory)/pr-analysis"
   - name: DIFF_FILE
     value: "$(Build.ArtifactStagingDirectory)/pr-diff.json"
-  - name: COMMENT_FILE
-    value: "pr-comment.md"
+
 
 steps:
   - bash: |
