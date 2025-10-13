@@ -50,8 +50,11 @@ steps:
         SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
         echo "  - Extracted Source Repository Name: $SOURCE_REPO_NAME"
         
+        # URL encode del nombre del proyecto (reemplazar espacios por %20)
+        PROJECT_ENCODED=$(echo "$(System.TeamProject)" | sed 's/ /%20/g')
+        
         # Obtener el Repository ID del source repo via API
-        API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$SOURCE_REPO_NAME?api-version=7.0"
+        API_URL="$(System.CollectionUri)${PROJECT_ENCODED}/_apis/git/repositories/$SOURCE_REPO_NAME?api-version=7.0"
         echo "  - Calling API: $API_URL"
         
         # Configurar autenticación
