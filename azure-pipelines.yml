@@ -100,24 +100,61 @@ steps:
       AUTH=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64)
 
       echo "Posting direct test comment..."
-      RESPONSE=$(curl -s -w 'HTTPSTATUS:%{http_code}' \
-        --connect-timeout 30 --max-time 60 \
+      TMP_BODY=$(mktemp)
+      TMP_HEADERS=$(mktemp)
+      TMP_ERR=$(mktemp)
+      # Perform request without verbose first
+      curl -sS -D "$TMP_HEADERS" \
+        --connect-timeout 20 --max-time 40 \
         -X POST \
         -H "Authorization: Basic $AUTH" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
         -d "$PAYLOAD" \
-        "$API_URL")
-      CODE=$(echo "$RESPONSE" | sed -n 's/.*HTTPSTATUS:\([0-9]*\).*/\1/p')
-      BODY=$(echo "$RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
-      echo "Direct API HTTP code: $CODE"
-      if [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
-        echo "✅ Direct API call succeeded"
-      elif [ "$CODE" = "000" ] || [ -z "$CODE" ]; then
-        echo "❌ Direct API call returned 000 (no HTTP response)"
-        echo "Body snippet:"; echo "$BODY" | head -c 300 || true
+        "$API_URL" -o "$TMP_BODY" 2> "$TMP_ERR"
+      CURL_EXIT=$?
+      HTTP_LINE=$(head -1 "$TMP_HEADERS" || true)
+      if echo "$HTTP_LINE" | grep -qi '^HTTP'; then
+        CODE=$(echo "$HTTP_LINE" | awk '{print $2}')
       else
-        echo "⚠️ Direct API call returned code $CODE"; echo "$BODY" | head -c 300
+        CODE="000"
       fi
+      echo "HTTP line: $HTTP_LINE"
+      echo "Curl exit code: $CURL_EXIT"
+      echo "Derived HTTP code: $CODE"
+      echo "Response body size: $(wc -c < "$TMP_BODY" 2>/dev/null) bytes"
+      echo "Headers (sanitized):"
+      sed 's/Authorization: Basic .*/Authorization: Basic ***REDACTED***/I' "$TMP_HEADERS" | head -25
+      if [ "$CODE" = "000" ]; then
+        echo "❌ No HTTP status received. Gathering diagnostics..."
+        echo "Curl stderr (first 40 lines):"; head -40 "$TMP_ERR"
+        echo "DNS resolution test:"; getent hosts dev.azure.com || nslookup dev.azure.com || dig +short dev.azure.com || true
+        echo "Outbound HEAD test (connectionData endpoint):"
+        curl -I -sS --connect-timeout 10 "https://dev.azure.com/$ORG/_apis/connectionData" -H "Authorization: Basic $AUTH" | sed 's/Authorization: Basic .*/Authorization: Basic ***REDACTED***/' || true
+        echo "Simple GET to connectionData (status only):"
+        curl -s -o /dev/null -w 'connData:%{http_code}\n' --connect-timeout 10 "https://dev.azure.com/$ORG/_apis/connectionData" -H "Authorization: Basic $AUTH" || true
+        echo "Proxy vars:"; echo "http_proxy=$http_proxy https_proxy=$https_proxy no_proxy=$no_proxy"
+        echo "TLS handshake probe (openssl):"; echo | openssl s_client -connect dev.azure.com:443 -servername dev.azure.com 2>/dev/null | head -15
+        echo "Interpreting curl exit code $CURL_EXIT ..."
+        case $CURL_EXIT in
+          6) echo "→ DNS lookup failed";;
+          7) echo "→ Failed to connect to host (network/firewall)";;
+          28) echo "→ Operation timeout (network latency/firewall)";;
+          35) echo "→ TLS handshake failure";;
+          52) echo "→ Empty reply from server";;
+          56) echo "→ Network read error";;
+          60) echo "→ SSL certificate problem (untrusted CA)";;
+          *) echo "→ Generic curl code ($CURL_EXIT), see man curl";;
+        esac
+      elif [ "$CODE" = "401" ]; then
+        echo "⚠️ Unauthorized (401) in direct test." 
+      elif [ "$CODE" = "200" ] || [ "$CODE" = "201" ]; then
+        echo "✅ Direct API call succeeded"
+      else
+        echo "⚠️ Direct API call returned code $CODE"; head -40 "$TMP_BODY"
+      fi
+      # Clean temp files
+      rm -f "$TMP_BODY" "$TMP_HEADERS" "$TMP_ERR"
       exit 0
     displayName: 💬 Direct API Test Comment
     env:
