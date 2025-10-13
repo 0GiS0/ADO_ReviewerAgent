@@ -67,52 +67,6 @@ steps:
     displayName: 📦 Install Copilot CLI
 
   - bash: |
-      echo "📦 Installing jq for JSON processing..."
-      if ! command -v jq &> /dev/null; then
-        sudo apt-get update -qq
-        sudo apt-get install -y jq
-        echo "✅ jq installed successfully"
-      else
-        echo "✅ jq already available"
-      fi
-      jq --version
-    displayName: 📦 Install jq
-
-  - bash: |
-      echo "🧪 API CONNECTIVITY TEST"
-      echo "======================="
-      echo ""
-      
-      # Extract repository information for testing
-      REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      ORG=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $2}')
-      PROJECT=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $3}' | sed 's/%20/ /g')
-      REPO=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $5}')
-      PR_ID="$(System.PullRequest.PullRequestId)"
-      
-      echo "📋 Test configuration:"
-      echo "  - Organization: $ORG"
-      echo "  - Project: $PROJECT"
-      echo "  - Repository: $REPO"
-      echo "  - PR ID: $PR_ID"
-      echo ""
-      
-      # Create a simple test comment first
-      echo "🧪 Creating test comment to verify API connectivity..."
-      ./scripts/test-pr-comment.sh "$ORG" "$PROJECT" "$REPO" "$PR_ID" "$(AZURE_DEVOPS_EXT_PAT)"
-      
-      if [ $? -eq 0 ]; then
-        echo "✅ API connectivity test passed!"
-      else
-        echo "❌ API connectivity test failed - aborting pipeline"
-        exit 1
-      fi
-      
-    displayName: 🧪 Test API Connectivity
-    env:
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-
-  - bash: |
       echo "🔍 GET PR DIFFERENCES"
       echo "===================="
       echo ""
