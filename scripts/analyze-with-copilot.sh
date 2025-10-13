@@ -73,33 +73,7 @@ echo "📡 Llamando a GitHub Copilot CLI para generar el archivo de análisis...
 copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --add-dir "$(pwd)"
 
 # Verificar que el archivo fue creado por Copilot
-if [ -f "pr-comment.md" ]; then
-    echo "✅ Archivo pr-comment.md creado por Copilot CLI"
-    echo "📊 Tamaño: $(wc -c < pr-comment.md) caracteres"
-    echo "📄 Líneas: $(wc -l < pr-comment.md)"
-    
-    # Mover el archivo a la ubicación esperada por la pipeline
-    if [ "$OUTPUT_FILE" != "$(pwd)/pr-comment.md" ]; then
-        echo "📁 Moviendo archivo a: $OUTPUT_FILE"
-        mv pr-comment.md "$OUTPUT_FILE"
-        
-        if [ -f "$OUTPUT_FILE" ]; then
-            echo "✅ Archivo movido exitosamente"
-        else
-            echo "❌ ERROR: No se pudo mover el archivo"
-            exit 1
-        fi
-    fi
-    
-    echo "📋 Mostrando contenido del análisis (primeras 20 líneas):"
-    head -20 "$OUTPUT_FILE"
-    
-else
-    echo "❌ ERROR: Copilot CLI no generó el archivo pr-comment.md"
-    echo "🔍 Archivos en directorio actual:"
-    ls -la
-    exit 1
-fi
+cat "./pr-comment.md"
 
 echo ""
 echo "🎉 Análisis completado exitosamente"
