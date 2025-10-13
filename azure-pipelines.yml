@@ -32,13 +32,31 @@ steps:
       
     displayName: 📋 Mostrar Información del PR
 
-  - template: templates/run-script.yml
-    parameters:
-      script: get-pr-diff.sh
-      displayName: 🌐 Obtener Diferencias usando Azure DevOps API
-      args: '"$(System.PullRequest.SourceRepositoryUri)" "$(System.PullRequest.SourceBranch)" "$(System.PullRequest.TargetBranch)" "$AZURE_DEVOPS_EXT_PAT" "$(DIFF_OUTPUT).json"'
-      env:
-        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+  - bash: |
+      echo "🌐 Ejecutando script get-pr-diff.sh..."
+      
+      # Verificar que el PAT esté disponible
+      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
+        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
+        exit 1
+      fi
+      
+      # Ejecutar el script directamente con los parámetros
+      ./scripts/get-pr-diff.sh \
+        "$(System.PullRequest.SourceRepositoryUri)" \
+        "$(System.PullRequest.SourceBranch)" \
+        "$(System.PullRequest.TargetBranch)" \
+        "$AZURE_DEVOPS_EXT_PAT" \
+        "$(DIFF_OUTPUT).json"
+      
+      if [ $? -ne 0 ]; then
+        echo "❌ ERROR: El script get-pr-diff.sh falló"
+        exit 1
+      fi
+      
+    displayName: 🌐 Obtener Diferencias usando Azure DevOps API
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
       echo "📝 Procesando respuesta para el pipeline..."
