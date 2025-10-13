@@ -71,16 +71,20 @@ Script de demostración que muestra cómo usar todos los componentes.
 Ve a tu proyecto en Azure DevOps y configura las siguientes variables:
 
 **Pipeline Variables:**
-- `GITHUB_TOKEN`: Tu Personal Access Token de GitHub con acceso a Copilot
+- `AZURE_DEVOPS_EXT_PAT`: Tu Personal Access Token de Azure DevOps
   - Marca esta variable como **secreta**
-  - Obtén el token en: https://github.com/settings/tokens
+  - Debe tener permisos de "Code (read)" y "Pull Request (contribute)"
+  - Se usa para obtener diferencias, descargar archivos y publicar comentarios
+
+**Prerequisitos del Agente:**
+- GitHub Copilot CLI instalado y configurado
+- Herramientas básicas: jq, curl, bash
 
 #### 1. Crear un Variable Group
 
 Crea un **Variable Group** llamado `GitHub Copilot CLI` con las siguientes variables:
 
 **Variables Requeridas:**
-- `GITHUB_TOKEN`: Token de GitHub con acceso a Copilot (generado en GitHub → Settings → Developer settings → Personal access tokens)
 - `AZURE_DEVOPS_EXT_PAT`: Personal Access Token de Azure DevOps con permisos para:
   - **Code (Read)**: Para leer información de PRs
   - **Code (Write)**: Para crear comentarios en PRs

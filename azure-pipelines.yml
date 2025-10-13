@@ -50,33 +50,22 @@ steps:
       
     displayName: 📋 Mostrar Información del PR
 
+  - task: NodeTool@0
+    inputs:
+      versionSource: "spec"
+      versionSpec: "22.x"     
+    displayName: ⚙️ Setup Node.js 22.x
+
   - bash: |
-      echo "🔧 Instalando dependencias necesarias..."
-      
-      # Verificar e instalar jq si no está disponible
-      if ! command -v jq &> /dev/null; then
-        echo "📦 Instalando jq..."
-        sudo apt-get update && sudo apt-get install -y jq
-      else
-        echo "✅ jq ya está instalado: $(jq --version)"
-      fi
-      
-      # Verificar GitHub Copilot CLI
       if ! command -v copilot &> /dev/null; then
-        echo "❌ GitHub Copilot CLI no está instalado"
-        echo "ℹ️  Este paso fallará si Copilot CLI no está disponible en el agente"
-        echo "💡 Considera usar un agente personalizado con Copilot CLI preinstalado"
-        exit 1
+        echo "Installing @github/copilot..."
+        npm install -g @github/copilot
       else
-        echo "✅ GitHub Copilot CLI está disponible: $(copilot --version)"
+        echo "✅ @github/copilot already installed (from cache)"
+        copilot --version
       fi
-      
-      # Crear directorios necesarios
-      mkdir -p "$(ANALYSIS_DIR)"
-      
-      echo "✅ Dependencias verificadas"
-      
-    displayName: 🔧 Verificar Dependencias
+    displayName: 📦 Install Copilot CLI
+
 
   - bash: |
       echo "🔍 PASO 1: Obteniendo diferencias del PR..."
