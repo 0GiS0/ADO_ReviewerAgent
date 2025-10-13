@@ -1,4 +1,6 @@
 # Pipeline Simplificada - Obtener Diferencias de PR
+# IMPORTANTE: Debes crear una variable secreta llamada 'AZURE_DEVOPS_EXT_PAT' 
+# en la configuración del pipeline con tu Personal Access Token
 trigger: none
 
 pr:
@@ -54,8 +56,16 @@ steps:
       # Verificar que el PAT esté disponible
       if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
         echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
+        echo "📝 SOLUCIÓN: Crea una variable secreta llamada 'AZURE_DEVOPS_EXT_PAT' en el pipeline"
+        echo "   1. Ve a Pipeline > Edit > Variables"
+        echo "   2. Agrega nueva variable: AZURE_DEVOPS_EXT_PAT"
+        echo "   3. Marca como 'Keep this value secret'"
+        echo "   4. Ingresa tu Personal Access Token"
         exit 1
       fi
+      
+      # Debug adicional del PAT (sin mostrar valor real)
+      echo "🔍 PAT verificado - longitud: ${#AZURE_DEVOPS_EXT_PAT} caracteres"
       
       echo "✅ Todas las verificaciones pasaron, ejecutando script..."
       
@@ -67,7 +77,7 @@ steps:
         "$(System.PullRequest.SourceRepositoryUri)" \
         "$(System.PullRequest.SourceBranch)" \
         "$(System.PullRequest.TargetBranch)" \
-        "$AZURE_DEVOPS_EXT_PAT" \
+        "$(AZURE_DEVOPS_EXT_PAT)" \
         "$(DIFF_OUTPUT).json"
       
       SCRIPT_EXIT_CODE=$?
