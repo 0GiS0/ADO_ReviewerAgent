@@ -48,9 +48,31 @@ Ve a tu proyecto en Azure DevOps y configura las siguientes variables:
   - Marca esta variable como **secreta**
   - Obtén el token en: https://github.com/settings/tokens
 
-**System Variables (automáticas):**
-- `System.AccessToken`: Se configura automáticamente por Azure DevOps
-  - Asegúrate de habilitar "Allow scripts to access the OAuth token" en la configuración de la pipeline
+#### 1. Crear un Variable Group
+
+Crea un **Variable Group** llamado `GitHub Copilot CLI` con las siguientes variables:
+
+**Variables Requeridas:**
+- `GITHUB_TOKEN`: Token de GitHub con acceso a Copilot (generado en GitHub → Settings → Developer settings → Personal access tokens)
+- `AZURE_DEVOPS_EXT_PAT`: Personal Access Token de Azure DevOps con permisos para:
+  - **Code (Read)**: Para leer información de PRs
+  - **Code (Write)**: Para crear comentarios en PRs
+  - Genera el PAT en: Azure DevOps → User Settings → Personal access tokens → New Token
+
+**Instrucciones para crear el PAT de Azure DevOps:**
+1. Ve a tu perfil de usuario en Azure DevOps (esquina superior derecha)
+2. Selecciona "Personal access tokens"
+3. Haz clic en "New Token"
+4. Configura:
+   - Name: "ReviewerAgent Pipeline"
+   - Organization: Tu organización
+   - Expiration: Según tus políticas de seguridad
+   - Scopes: Selecciona "Code" con permisos Read y Write
+5. Copia el token generado y guárdalo como `AZURE_DEVOPS_EXT_PAT` en el Variable Group
+
+**Importante:** 
+- Marca ambas variables como "Secret" para proteger los tokens
+- El `AZURE_DEVOPS_EXT_PAT` es necesario porque el `System.AccessToken` por defecto puede tener permisos insuficientes para crear threads en PRs
 
 #### 2. Configurar la Pipeline
 
