@@ -42,39 +42,57 @@ steps:
     displayName: 📋 Mostrar Información del PR
 
   - bash: |
-      echo "📥 Clonando el repositorio fuente..."
+      echo "📥 Analizando repositorio fuente..."
       
-      # Clonar el repositorio fuente
+      # Obtener la URI del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
+      echo "URI original: $SOURCE_REPO_URI"
       
-      # Configurar autenticación para el clone
+      # En Azure DevOps, el agente ya descarga el repositorio automáticamente
+      # Solo necesitamos configurar la autenticación para operaciones adicionales
       if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
-        # Usar PAT si está disponible
-        AUTH_URI=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://:$AZURE_DEVOPS_EXT_PAT@|")
+        echo "Configurando autenticación con PAT"
+        git config --global credential.helper store
+        echo "https://:$AZURE_DEVOPS_EXT_PAT@dev.azure.com" > ~/.git-credentials
       else
-        # Usar System.AccessToken
-        AUTH_URI=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://:$(System.AccessToken)@|")
+        echo "Configurando autenticación con System.AccessToken"  
+        git config --global credential.helper store
+        echo "https://:$(System.AccessToken)@dev.azure.com" > ~/.git-credentials
       fi
       
-      echo "Clonando desde: $SOURCE_REPO_URI"
-      git clone "$AUTH_URI" source-repo
-      cd source-repo
+      echo "📋 Información del repositorio actual:"
+      echo "  - Working directory: $(pwd)"
+      echo "  - Git status disponible: $(git status --porcelain >/dev/null 2>&1 && echo 'Sí' || echo 'No')"
       
-      echo "✅ Repositorio clonado exitosamente"
+      echo "📋 Remotes configurados:"
+      git remote -v 2>/dev/null || echo "No hay remotes configurados"
+      
       echo "📋 Branches disponibles:"
-      git branch -a
+      git branch -a 2>/dev/null || echo "No se pueden listar branches"
       
-      echo "📋 Información del repositorio:"
-      echo "  - Commit actual: $(git rev-parse HEAD)"
-      echo "  - Branch actual: $(git branch --show-current)"
+      echo "📋 Información del commit:"
+      echo "  - Commit actual: $(git rev-parse HEAD 2>/dev/null || echo 'No disponible')"
+      echo "  - Branch actual: $(git branch --show-current 2>/dev/null || echo 'No disponible')"
+      
+      # Si el repositorio fuente es diferente al actual, intentar agregarlo como remote
+      CURRENT_REPO_URI="$(Build.Repository.Uri)"
+      if [ "$SOURCE_REPO_URI" != "$CURRENT_REPO_URI" ]; then
+        echo "⚠️  El repositorio fuente es diferente al pipeline repository"
+        echo "   - Pipeline repo: $CURRENT_REPO_URI"
+        echo "   - Source repo: $SOURCE_REPO_URI"
+        
+        echo "🔄 Agregando repositorio fuente como remote..."
+        git remote add source-repo "$SOURCE_REPO_URI" 2>/dev/null || echo "No se pudo agregar remote (podría ya existir)"
+        git fetch source-repo 2>/dev/null || echo "No se pudo hacer fetch del source repo"
+      else
+        echo "✅ El repositorio fuente es el mismo que el pipeline repository"
+      fi
     displayName: � Clonar Repositorio Fuente
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      cd source-repo
-      
       echo "🔍 Obteniendo diferencias entre branches..."
       
       TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
