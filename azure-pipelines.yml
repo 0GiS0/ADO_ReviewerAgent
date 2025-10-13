@@ -36,9 +36,20 @@ steps:
       
       # Obtener la URI del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      echo "Descargar: $SOURCE_REPO_URI"
+      echo "Repositorio fuente: $SOURCE_REPO_URI"
       
-      git clone $(System.PullRequest.SourceRepositoryUri) source-repo
+      # Insertar el PAT en la URL
+      # Convertir https://user@domain.com/path a https://PAT@domain.com/path
+      if [[ "$SOURCE_REPO_URI" == *"@"* ]]; then
+        # Si ya tiene un usuario, reemplazarlo con el PAT
+        AUTH_URL=$(echo "$SOURCE_REPO_URI" | sed "s|https://[^@]*@|https://$(AZURE_DEVOPS_EXT_PAT)@|")
+      else
+        # Si no tiene usuario, agregar el PAT
+        AUTH_URL=$(echo "$SOURCE_REPO_URI" | sed "s|https://|https://$(AZURE_DEVOPS_EXT_PAT)@|")
+      fi
+      
+      echo "Clonando con autenticación..."
+      git clone "$AUTH_URL" source-repo
 
     displayName: 📥 Clonar Repositorio Fuente
     env:
