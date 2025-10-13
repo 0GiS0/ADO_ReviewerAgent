@@ -57,14 +57,23 @@ echo "📊 Encontrados archivos para analizar: $TOTAL_FILES"
 echo ""
 
 # Crear el prompt para Copilot
-ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y genera un archivo markdown llamado pr-comment.md con un resumen muy breve para revisión de Pull Request:
-- Si hay problemas de severidad ALTA o MEDIA, enuméralos brevemente (máximo 1 línea por problema, solo descripción y severidad).
-- Si no hay problemas de severidad alta o media, escribe simplemente: '✅ El archivo está bien, no se detectaron problemas relevantes.'
-- No incluyas problemas de severidad baja ni recomendaciones menores.
-- No incluyas puntuaciones, ni veredictos extensos, ni secciones adicionales.
-- El archivo debe ser lo más corto y directo posible, solo lo esencial para el revisor.
-- Siempre se tiene que mencionar el nombre del archivo analizado.
-- Si hay alguna mejora relacionada se debe incluir un snippet del código que no está bien."
+ANALYSIS_PROMPT="Genera un comentario de revisión de PR en español, con formato profesional y elegante. Usa títulos, subtítulos y emojis para resaltar el estado de los archivos analizados. 
+- Si un archivo no tiene problemas, indica que está bien.
+- Si se detecta un problema relevante en algún archivo, incluye un fragmento de código (snippet) que muestre la parte problemática, con una breve explicación.
+- Termina con una conclusión o recomendación.
+
+Ejemplo de formato:
+
+---
+## 📝 Análisis de Pull Request
+
+### 📄 Archivo analizado
+`.devcontainer/devcontainer.json`
+
+❌ **Problema detectado:** [Descripción breve]
+```json
+// snippet del código problemático
+```"
 
 
 
