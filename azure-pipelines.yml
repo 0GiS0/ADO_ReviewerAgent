@@ -27,7 +27,7 @@ variables:
   - name: DIFF_FILE
     value: "$(Build.ArtifactStagingDirectory)/pr-diff.json"
   - name: COMMENT_FILE
-    value: "$(Build.ArtifactStagingDirectory)/pr-comment.md"
+    value: "pr-comment.md"
 
 steps:
   - script: echo "🚀 Starting complete PR analysis pipeline with GitHub Copilot"
@@ -143,32 +143,7 @@ steps:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "🤖 STEP 3: Analyzing files with GitHub Copilot CLI..."
-      
-      # Check if script exists
-      if [ ! -f "./scripts/analyze-with-copilot.sh" ]; then
-        echo "❌ ERROR: Script analyze-with-copilot.sh not found"
-        exit 1
-      fi
-      
-      # Check if there are files to analyze
-      if [ ! -d "$(ANALYSIS_DIR)/source" ] || [ -z "$(ls -A "$(ANALYSIS_DIR)/source" 2>/dev/null)" ]; then
-        echo "⚠️  No files to analyze, creating empty comment"
-        cat > "$(COMMENT_FILE)" << EOF
-      # 📝 Pull Request Analysis
-      
-      ⚠️  **No files found to analyze in this PR.**
-      
-      This can happen if:
-      - The PR only contains file deletions
-      - Files could not be downloaded
-      - The PR is empty
-      
-      **Status**: No files to review
-      **Recommendation**: Manually verify the PR content
-      EOF
-        exit 0
-      fi
+      echo "🤖 STEP 3: Analyzing files with GitHub Copilot CLI..."      
       
       # Execute analysis with Copilot
       echo "🔍 Running analyze-with-copilot.sh..."
@@ -177,10 +152,10 @@ steps:
         "$(COMMENT_FILE)"
       
       # Check if analysis file was created successfully (regardless of exit code)
-      if [ -f "$(COMMENT_FILE)" ] && [ -s "$(COMMENT_FILE)" ]; then
+      if [ -f "$(ANALYSIS_DIR)/source/pr-comment.md" ] && [ -s "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
         echo "✅ Analysis completed successfully"
-        echo "📊 Comment size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
-        echo "📄 Comment lines: $(wc -l < "$(COMMENT_FILE)")"
+        echo "📊 Comment size: $(du -h "$(ANALYSIS_DIR)/source/pr-comment.md" | cut -f1)"
+        echo "📄 Comment lines: $(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")"
       else
         echo "⚠️  Analysis failed, creating error comment"
         cat > "$(COMMENT_FILE)" << EOF
@@ -214,23 +189,23 @@ steps:
         echo "==================="
         
         # Show first 50 lines of the analysis
-        head -50 "$(COMMENT_FILE)" || cat "$(COMMENT_FILE)"
+        head -50 "$(ANALYSIS_DIR)/source/pr-comment.md" || cat "$(ANALYSIS_DIR)/source/pr-comment.md"
         
         # If file is longer than 50 lines, show indication
-        TOTAL_LINES=$(wc -l < "$(COMMENT_FILE)")
+        TOTAL_LINES=$(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")
         if [ $TOTAL_LINES -gt 50 ]; then
           echo ""
           echo "... (showing first 50 lines of $TOTAL_LINES total lines)"
           echo ""
           echo "📋 LAST 10 LINES:"
           echo "=================="
-          tail -10 "$(COMMENT_FILE)"
+          tail -10 "$(ANALYSIS_DIR)/source/pr-comment.md"
         fi
         
         echo ""
         echo "✅ Analysis content verified"
       else
-        echo "❌ ERROR: Analysis file not found: $(COMMENT_FILE)"
+        echo "❌ ERROR: Analysis file not found: $(ANALYSIS_DIR)/source/pr-comment.md"
         echo "🔍 Files in staging directory:"
         ls -la "$(Build.ArtifactStagingDirectory)" || echo "Directory not found"
       fi
@@ -238,17 +213,12 @@ steps:
     displayName: 📄 Display Generated Analysis
 
   - bash: |
-      echo "�💬 STEP 4: Publishing comment on PR..."
-      
-      # Check if script exists
-      if [ ! -f "./scripts/post-pr-comment.sh" ]; then
-        echo "❌ ERROR: Script post-pr-comment.sh not found"
-        exit 1
-      fi
+      echo "🤖 STEP 4: Publishing comment on PR..."
+
       
       # Check if comment file exists
-      if [ ! -f "$(COMMENT_FILE)" ]; then
-        echo "❌ ERROR: Comment file not found: $(COMMENT_FILE)"
+      if [ ! -f "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
+        echo "❌ ERROR: Comment file not found: $(ANALYSIS_DIR)/source/pr-comment.md"
         exit 1
       fi
       
@@ -291,7 +261,7 @@ steps:
       # Execute the publishing script
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
-        "$(COMMENT_FILE)" \
+        "$(ANALYSIS_DIR)/source/pr-comment.md" \
         "$ORG" \
         "$PROJECT" \
         "$REPO" \
@@ -356,13 +326,13 @@ steps:
       fi
       
       # Show comment information
-      if [ -f "$(COMMENT_FILE)" ]; then
+      if [ -f "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
         echo ""
         echo "💬 Generated comment:"
-        echo "  - File: $(COMMENT_FILE)"
-        echo "  - Size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
-        echo "  - Lines: $(wc -l < "$(COMMENT_FILE)")"
-        echo "  - Characters: $(wc -c < "$(COMMENT_FILE)")"
+        echo "  - File: $(ANALYSIS_DIR)/source/pr-comment.md"
+        echo "  - Size: $(du -h "$(ANALYSIS_DIR)/source/pr-comment.md" | cut -f1)"
+        echo "  - Lines: $(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")"
+        echo "  - Characters: $(wc -c < "$(ANALYSIS_DIR)/source/pr-comment.md")"
       fi
       
     displayName: 📊 Show Final Summary

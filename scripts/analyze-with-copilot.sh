@@ -57,7 +57,7 @@ echo "📊 Encontrados archivos para analizar: $TOTAL_FILES"
 echo ""
 
 # Crear el prompt para Copilot
-ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y crea un archivo markdown llamado '$(basename "$OUTPUT_FILE")' que contenga un comentario de revisión de Pull Request.
+ANALYSIS_PROMPT="Analiza todos los archivos en este directorio y crea un archivo markdown llamado pr-comment.md en el directorio actual que contenga un comentario de revisión de Pull Request.
 
 El archivo debe incluir:
 
@@ -87,12 +87,12 @@ Para cada problema encontrado:
 
 El contenido del archivo debe ser SOLO el comentario de revisión, sin metadata ni información técnica del análisis. Crea el archivo directamente."
 
-echo "🔄 Ejecutando análisis con GitHub Copilot CLI..."
-echo "Este proceso puede tomar varios minutos dependiendo del tamaño del proyecto..."
-echo ""
+
 
 # Ejecutar Copilot CLI
 echo "📡 Llamando a GitHub Copilot CLI para generar el archivo de análisis..."
 
 # Ejecutar copilot en modo no interactivo para que genere el archivo
 copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --add-dir "$(pwd)"
+
+cat pr-comment.md
