@@ -78,11 +78,25 @@ steps:
       echo ""
       echo "🌐 Llamando a Azure DevOps API..."
       
-      # Realizar la llamada a la API usando curl
+      # Realizar la llamada a la API usando curl con System.AccessToken
+      echo "🔐 Usando System.AccessToken para autenticación..."
       curl -s \
-        -H "Authorization: Basic $(echo -n ":$(AZURE_DEVOPS_EXT_PAT)" | base64)" \
+        -H "Authorization: Basic $(echo -n ":$(System.AccessToken)" | base64)" \
         -H "Content-Type: application/json" \
-        "$FULL_URL" > "$(DIFF_OUTPUT).json" || { echo "❌ ERROR: Falló la llamada a la API"; exit 1; }
+        "$FULL_URL" > "$(DIFF_OUTPUT).json"
+      
+      # Verificar si la llamada fue exitosa
+      if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Falló la llamada a la API"
+        exit 1
+      fi
+      
+      # Verificar que la respuesta no sea un error
+      if grep -q '"error"' "$(DIFF_OUTPUT).json" 2>/dev/null; then
+        echo "❌ ERROR: La API devolvió un error:"
+        cat "$(DIFF_OUTPUT).json"
+        exit 1
+      fi
       
       echo "✅ Respuesta de la API guardada en: $(DIFF_OUTPUT).json"
       
@@ -96,14 +110,28 @@ steps:
       echo "Fecha: $(date)" >> "$(DIFF_OUTPUT)"
       echo "" >> "$(DIFF_OUTPUT)"
       
-      # Mostrar archivos cambiados si están disponibles
+      # Verificar si jq está disponible y si el JSON es válido
       if command -v jq &> /dev/null; then
-        echo "📁 Archivos modificados:" >> "$(DIFF_OUTPUT)"
-        jq -r '.changes[]?.item?.path // empty' "$(DIFF_OUTPUT).json" | sort | uniq >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los archivos modificados" >> "$(DIFF_OUTPUT)"
-        echo "" >> "$(DIFF_OUTPUT)"
+        echo "✅ jq está disponible, procesando JSON..."
         
-        echo "🔍 Detalles de los cambios:" >> "$(DIFF_OUTPUT)"
-        jq -r '.changes[]? | "Archivo: \(.item.path // "unknown")\nTipo de cambio: \(.changeType // "unknown")\n"' "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los detalles de cambios" >> "$(DIFF_OUTPUT)"
+        # Verificar si el JSON es válido
+        if jq empty "$(DIFF_OUTPUT).json" 2>/dev/null; then
+          echo "✅ JSON válido recibido de la API"
+          
+          echo "📁 Archivos modificados:" >> "$(DIFF_OUTPUT)"
+          jq -r '.changes[]?.item?.path // empty' "$(DIFF_OUTPUT).json" | sort | uniq >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los archivos modificados" >> "$(DIFF_OUTPUT)"
+          echo "" >> "$(DIFF_OUTPUT)"
+          
+          echo "🔍 Detalles de los cambios:" >> "$(DIFF_OUTPUT)"
+          jq -r '.changes[]? | "Archivo: \(.item.path // "unknown")\nTipo de cambio: \(.changeType // "unknown")\n"' "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los detalles de cambios" >> "$(DIFF_OUTPUT)"
+        else
+          echo "❌ ERROR: JSON inválido recibido de la API"
+          echo "Contenido de la respuesta:"
+          cat "$(DIFF_OUTPUT).json"
+          echo ""
+          echo "⚠️  Guardando respuesta completa en el diff" >> "$(DIFF_OUTPUT)"
+          cat "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)"
+        fi
       else
         echo "⚠️  jq no está disponible, guardando respuesta JSON completa" >> "$(DIFF_OUTPUT)"
         cat "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)"
