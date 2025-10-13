@@ -101,7 +101,7 @@ steps:
         exit 1
       fi
       
-    displayName: 🔍 Step 1 - Get PR Differences
+    displayName: 🔍 Get PR Differences
     env:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
@@ -138,7 +138,7 @@ steps:
         exit 1
       fi
       
-    displayName: 📁 Step 2 - Download Modified Files
+    displayName: 📁 Download Modified Files
     env:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
@@ -197,7 +197,7 @@ steps:
       EOF
       fi
       
-    displayName: 🤖 Step 3 - Analyze with GitHub Copilot CLI
+    displayName: 🤖 Analyze with GitHub Copilot CLI
 
   - bash: |
       echo "💬 STEP 4: Publishing comment on PR..."
@@ -227,6 +227,29 @@ steps:
       echo "  - Repository: $REPO"
       echo "  - PR ID: $PR_ID"
       
+      # Debug PAT availability (without exposing the token)
+      if [ -z "$(AZURE_DEVOPS_EXT_PAT)" ]; then
+        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT is not set"
+        exit 1
+      else
+        echo "✅ PAT is available (length: ${#AZURE_DEVOPS_EXT_PAT} chars)"
+      fi
+      
+      # Test API connectivity
+      echo "🌐 Testing Azure DevOps API connectivity..."
+      TEST_URL="https://dev.azure.com/$ORG/$PROJECT/_apis/git/repositories/$REPO"
+      TEST_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+        -H "Authorization: Basic $(printf "%s:" "$(AZURE_DEVOPS_EXT_PAT)" | base64)" \
+        -H "Accept: application/json" \
+        "$TEST_URL?api-version=7.2-preview.1" || echo "CURL_FAILED")
+      
+      if [[ "$TEST_RESPONSE" == *"CURL_FAILED"* ]]; then
+        echo "⚠️  Network connectivity test failed"
+      else
+        TEST_CODE=$(echo "$TEST_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+        echo "📡 API test response: $TEST_CODE"
+      fi
+      
       # Execute the publishing script
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
@@ -237,15 +260,27 @@ steps:
         "$PR_ID" \
         "$(AZURE_DEVOPS_EXT_PAT)"
       
-      if [ $? -eq 0 ]; then
+      SCRIPT_EXIT_CODE=$?
+      if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
         echo "✅ Comment published successfully on PR #$PR_ID"
       else
-        echo "❌ ERROR: Failed to publish comment"
+        echo "❌ ERROR: Failed to publish comment (exit code: $SCRIPT_EXIT_CODE)"
         echo "ℹ️  Analysis is available in artifacts"
+        
+        # Additional debugging
+        echo ""
+        echo "🔍 Debugging information:"
+        echo "  - Organization: $ORG"
+        echo "  - Project: $PROJECT" 
+        echo "  - Repository: $REPO"
+        echo "  - PR ID: $PR_ID"
+        echo "  - Comment file exists: $([ -f "$(COMMENT_FILE)" ] && echo "Yes" || echo "No")"
+        echo "  - Comment file size: $([ -f "$(COMMENT_FILE)" ] && du -h "$(COMMENT_FILE)" | cut -f1 || echo "N/A")"
+        
         # Don't fail the pipeline, only the comment
       fi
       
-    displayName: 💬 Step 4 - Publish Comment on PR
+    displayName: 💬 Publish Comment on PR
     env:
       AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
