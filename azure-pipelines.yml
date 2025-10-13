@@ -32,87 +32,7 @@ steps:
     displayName: 📋 Mostrar Información del PR
 
   - bash: |
-      echo "📥 Clonar repositorio fuente $(System.PullRequest.SourceRepositoryUri)"
-      
-      # Obtener la URI del repositorio fuente
-      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      echo "URI original: $SOURCE_REPO_URI"
-      
-      # Remover el protocolo https:// y el usuario existente
-      TEMP_URI=$(echo $SOURCE_REPO_URI | sed 's|https://[^@]*@||')
-      echo "Sin protocolo y usuario: $TEMP_URI"
-      
-      # Obtener el dominio (dev.azure.com)
-      DOMAIN=$(echo $TEMP_URI | awk -F'/' '{print $1}')
-      echo "  - DOMAIN: $DOMAIN"
-      
-      # Obtener la organización
-      ORG=$(echo $TEMP_URI | awk -F'/' '{print $2}')
-      echo "  - ORG: $ORG"
-      
-      # Obtener el proyecto (decodificar %20 a espacios)
-      PROJECT=$(echo $TEMP_URI | awk -F'/' '{print $3}' | sed 's/%20/ /g')
-      echo "  - PROJECT: $PROJECT"
-      
-      # Obtener el repositorio
-      REPO=$(echo $TEMP_URI | awk -F'/' '{print $5}')
-      echo "  - REPO: $REPO"
-
-      # Montar de nuevo la URL con el PAT, codificando los espacios del proyecto
-      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
-      AUTHENTICATED_REPO_URI="https://$(AZURE_DEVOPS_EXT_PAT)@$DOMAIN/$ORG/$PROJECT_ENCODED/_git/$REPO"
-      echo "  - AUTHENTICATED_REPO_URI: $AUTHENTICATED_REPO_URI"
-
-      # Clonar el repositorio en el directorio source-repo
-      git clone "$AUTHENTICATED_REPO_URI" source-repo || { echo "❌ ERROR: Falló el comando git clone"; exit 1; }
-
-
-    displayName: 📥 Clonar Repositorio Fuente
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-
-  - bash: |
-      echo "Usar git diff para ver diferencias entre ramas..."
-      echo ""
-
-      cd source-repo || { echo "❌ ERROR: No se pudo cambiar al directorio source-repo"; exit 1; }
-      
-
-      git fetch origin
-      git --no-pager diff origin/main..origin/copilot/465 > "$(DIFF_OUTPUT)" || { echo "❌ ERROR: Falló el comando git diff"; exit 1; }
-
-
-      echo "✅ Diff generado exitosamente en: $(DIFF_OUTPUT)"
-    displayName: 🔍 Obtener Diferencias del PR
-
-  - bash: |
-      echo "📄 Resumen del análisis:"
-      echo "  - Archivo de diferencias: $(DIFF_OUTPUT)"
-      if [ -f "$(DIFF_OUTPUT)" ]; then
-        echo "  - Tamaño: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
-        echo "  - Líneas: $(wc -l < "$(DIFF_OUTPUT)")"
-        echo "✅ Diff generado correctamente"
-      else
-        echo "❌ ERROR: No se generó el archivo de diferencias"
-        exit 1
-      fi
-    displayName: 📄 Mostrar Resumen
-
-  - task: PublishBuildArtifacts@1
-    inputs:
-      PathtoPublish: "$(Build.ArtifactStagingDirectory)"
-      ArtifactName: "pr-diff"
-      publishLocation: "Container"
-    displayName: 📦 Publicar Diff como Artefacto
-
-  - bash: |
-      echo "✅ Pipeline completada exitosamente"
-      echo "📁 El diff está disponible en los artefactos como 'pr-diff'"
-    displayName: ✅ Completado
-
-  - bash: |
-      echo "🔍 Obteniendo diferencias usando Azure DevOps API REST..."
+      echo "🌐 Obteniendo diferencias usando Azure DevOps API REST..."
       
       # Extraer información del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
@@ -193,9 +113,12 @@ steps:
       echo "✅ Diff procesado y guardado en: $(DIFF_OUTPUT)"
       
     displayName: 🌐 Obtener Diferencias usando API REST
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
   - bash: |
-      echo "📄 Resumen del análisis:"
+      echo "📄 Resumen del análisis usando API REST:"
       echo "  - Archivo JSON de la API: $(DIFF_OUTPUT).json"
       echo "  - Archivo de diferencias procesado: $(DIFF_OUTPUT)"
       
@@ -217,3 +140,17 @@ steps:
         echo "📊 Tamaño de la respuesta JSON: $(du -h "$(DIFF_OUTPUT).json" | cut -f1)"
       fi
     displayName: 📄 Mostrar Resumen de API
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: "$(Build.ArtifactStagingDirectory)"
+      ArtifactName: "pr-diff"
+      publishLocation: "Container"
+    displayName: 📦 Publicar Diff como Artefacto
+
+  - bash: |
+      echo "✅ Pipeline completada exitosamente"
+      echo "📁 El diff está disponible en los artefactos como 'pr-diff'"
+    displayName: ✅ Completado
+
+
