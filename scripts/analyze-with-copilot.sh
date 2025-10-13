@@ -106,7 +106,7 @@ Focus only on this single file. Be thorough but concise."
 cd "$PR_DIRECTORY"
     
 echo "🤖 Generating analysis with Copilot..."
-copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --model "$MODEL"; then
+copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --model "$MODEL"
 
 
 # Summary
