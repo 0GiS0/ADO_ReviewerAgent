@@ -4,20 +4,47 @@ Un agente automatizado que utiliza GitHub Copilot CLI para revisar Pull Requests
 
 ## 📋 Descripción
 
-Este proyecto proporciona una pipeline de Azure DevOps que:
+Este proyecto proporciona una pipeline completa de Azure DevOps que:
 
 1. ✅ Se ejecuta automáticamente en cada Pull Request
-2. 🔍 Analiza los cambios de código usando GitHub Copilot CLI
-3. 📝 Genera un reporte detallado en formato Markdown
-4. 💬 Publica los comentarios de revisión directamente en la PR de Azure DevOps
+2. 🔍 Obtiene diferencias del PR usando Azure DevOps API
+3. 📁 Descarga archivos modificados organizados por rama
+4. 🤖 Analiza los cambios de código usando GitHub Copilot CLI
+5. 📝 Genera un comentario de revisión detallado en formato Markdown
+6. 💬 Publica automáticamente el comentario de revisión en la PR
 
 ## 🎯 Características
 
-- **Análisis Automatizado**: Revisión de código automática en cada PR
-- **Detección de Problemas**: Identifica bugs, problemas de seguridad, y mejores prácticas
-- **Reportes Detallados**: Genera reportes en Markdown con sugerencias concretas
-- **Integración con Azure DevOps**: Publica comentarios directamente en las PRs
-- **Personalizable**: Fácilmente extensible para agregar más análisis
+- **Pipeline Completa**: Flujo automatizado de análisis completo de PRs
+- **Integración con Azure DevOps API**: Obtención y descarga automática de archivos modificados
+- **Análisis con IA**: Utiliza GitHub Copilot CLI para análisis inteligente de calidad y seguridad
+- **Comentarios Automáticos**: Publica comentarios de revisión directamente en las PRs
+- **Pasos Separados**: Pipeline modular con pasos independientes para fácil depuración
+- **Artefactos Completos**: Genera archivos de análisis disponibles como artefactos de build
+- **Manejo de Errores**: Gestión robusta de errores en cada paso del proceso
+
+## 📁 Scripts Incluidos
+
+### 1. `get-pr-diff.sh`
+Obtiene las diferencias de un Pull Request usando la API de Azure DevOps.
+
+### 2. `download-pr-files.sh`
+Descarga los archivos modificados en un PR, organizándolos en directorios temporales por rama.
+
+### 3. `analyze-with-copilot.sh`
+Analiza archivos usando GitHub Copilot CLI y genera un comentario de revisión de PR.
+
+### 4. `post-pr-comment.sh`
+Publica comentarios de revisión en Pull Requests de Azure DevOps.
+
+### 5. `get-and-download-pr-files.sh` (Wrapper)
+Script completo que combina la obtención del diff y descarga de archivos.
+
+### 6. `complete-pr-analysis.sh` (Flujo completo)
+Script que ejecuta todo el flujo: obtener diff, descargar archivos y analizar con Copilot.
+
+### 7. `example-usage.sh`
+Script de demostración que muestra cómo usar todos los componentes.
 
 ## 🚀 Instalación
 
@@ -107,6 +134,54 @@ Una vez configurada, la pipeline se ejecutará automáticamente cuando:
 
 Los scripts también se pueden ejecutar manualmente:
 
+#### 🔍 Obtener diferencias de PR:
+```bash
+./scripts/get-pr-diff.sh \
+  'https://user@dev.azure.com/org/project/_git/repo' \
+  'refs/heads/feature-branch' \
+  'refs/heads/main' \
+  'your-pat-token' \
+  '/path/to/output.json'
+```
+
+#### 📁 Descargar archivos modificados:
+```bash
+./scripts/download-pr-files.sh \
+  '/path/to/diff.json' \
+  'https://user@dev.azure.com/org/project/_git/repo' \
+  'refs/heads/feature-branch' \
+  'refs/heads/main' \
+  'your-pat-token' \
+  '/path/to/output-dir'
+```
+
+#### 🚀 Proceso completo (obtener diff + descargar archivos):
+```bash
+./scripts/get-and-download-pr-files.sh \
+  'https://user@dev.azure.com/org/project/_git/repo' \
+  'refs/heads/feature-branch' \
+  'refs/heads/main' \
+  'your-pat-token' \
+  '/path/to/output-dir'
+```
+
+#### 🤖 Analizar archivos con GitHub Copilot CLI:
+```bash
+./scripts/analyze-with-copilot.sh \
+  '/path/to/downloaded/files' \
+  '/path/to/output/pr-comment.md'
+```
+
+#### 🎯 Flujo completo (diff + descarga + análisis con Copilot):
+```bash
+./scripts/complete-pr-analysis.sh \
+  'https://user@dev.azure.com/org/project/_git/repo' \
+  'refs/heads/feature-branch' \
+  'refs/heads/main' \
+  'your-pat-token' \
+  '/path/to/analysis-dir'
+```
+
 #### Analizar código con Copilot:
 ```bash
 chmod +x scripts/analyze-with-copilot.sh
@@ -128,6 +203,25 @@ chmod +x scripts/analyze-with-copilot.sh
 ```bash
 chmod +x scripts/setup-copilot.sh
 ./scripts/setup-copilot.sh
+```
+
+### 📋 Parámetros de los Scripts de Descarga
+
+**Parámetros comunes:**
+- `SOURCE_REPO_URI`: URI completa del repositorio (ej: `https://user@dev.azure.com/org/project/_git/repo`)
+- `SOURCE_BRANCH`: Rama fuente del PR (ej: `refs/heads/feature-branch`)
+- `TARGET_BRANCH`: Rama destino del PR (ej: `refs/heads/main`)
+- `PAT`: Personal Access Token con permisos de lectura en el repositorio
+- `OUTPUT_DIR`: [Opcional] Directorio de salida (por defecto: `./pr-files-TIMESTAMP`)
+
+**Estructura de salida generada:**
+```
+output-directory/
+├── source/           # Archivos de la rama fuente
+├── target/           # Archivos de la rama destino
+└── metadata/
+    ├── pr-info.json  # Información del PR y estadísticas
+    └── original-diff.json # Diff completo en formato JSON
 ```
 
 ## 📁 Estructura del Proyecto
