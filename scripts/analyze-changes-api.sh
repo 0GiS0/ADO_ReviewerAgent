@@ -18,6 +18,8 @@ PR_ID="${SYSTEM_PULLREQUEST_PULLREQUESTID}"
 SOURCE_BRANCH="${SYSTEM_PULLREQUEST_SOURCEBRANCH#refs/heads/}"
 TARGET_BRANCH="${SYSTEM_PULLREQUEST_TARGETBRANCH#refs/heads/}"
 
+# Archivo de salida del reporte
+
 # Validar variables
 if [ -z "$ORG_URL" ] || [ -z "$PROJECT" ] || [ -z "$REPO_ID" ] || [ -z "$PR_ID" ]; then
     echo "❌ Error: Variables de Azure DevOps no configuradas"
