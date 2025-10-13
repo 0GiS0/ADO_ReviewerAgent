@@ -19,29 +19,45 @@ variables:
     value: "0.0.339"
   - name: MODEL
     value: claude-sonnet-4
+  - name: System.Debug
+    value: false
 
-steps:
-  - script: echo "🚀 PR Review pipeline started!"
-    displayName: 🚀 Start Pipeline
-
-  - bash: |
-      echo "📋 PR and Repository Information:"
-      echo "  - Build Repository: $(Build.Repository.Name)"
-      echo "  - Build Repository ID: $(Build.Repository.ID)"
-      echo "  - PR Repository: Detected from PR context"
-      echo "  - PR #: $(System.PullRequest.PullRequestId)"
-      echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
-      echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
-      echo "  - Project: $(System.TeamProject)"
-      echo "  - Collection: $(System.CollectionUri)"
-    displayName: 📋 Show PR Context
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+jobs:
+  - job: ReviewPR
+    displayName: Review Pull Request
+    # Permitir acceso al OAuth token para llamadas a la API de Azure DevOps
+    variables:
+      - name: System.AccessToken
+        value: $(System.AccessToken)
+    
+    steps:
+      - script: echo "🚀 PR Review pipeline started!"
+        displayName: 🚀 Start Pipeline
 
   - checkout: self
     fetchDepth: "0"
     persistCredentials: "true"
-    displayName: 📥 Checkout Code
+    displayName: 📥 Checkout Repository
+    
+  - bash: |
+      echo "📋 Repository Information:"
+      echo "  Repository: $(Build.Repository.Name)"
+      echo "  Repository ID: $(Build.Repository.ID)"
+      echo "  Source Branch: $(System.PullRequest.SourceBranch)"
+      echo "  Target Branch: $(System.PullRequest.TargetBranch)"
+      echo "  Source Repository: $(System.PullRequest.SourceRepositoryUri)"
+      echo "  PR ID: $(System.PullRequest.PullRequestId)"
+      echo ""
+      echo "📂 Current directory:"
+      pwd
+      echo ""
+      echo "📁 Files in current directory:"
+      ls -la
+      echo ""
+      echo "🔍 Git info:"
+      git remote -v
+      git log --oneline -3
+    displayName: 🔍 Debug Repository Info
 
   - task: NodeTool@0
     inputs:
@@ -73,33 +89,24 @@ steps:
       fi
     displayName: 📦 Install Copilot CLI
 
-  - bash: |
-      echo "📦 Installing jq for JSON processing..."
-      if ! command -v jq &> /dev/null; then
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq jq
-        echo "✅ jq installed"
-      else
-        echo "✅ jq already installed"
-        jq --version
-      fi
-    displayName: 📦 Install jq
-
   - template: templates/run-script.yml
     parameters:
-      script: get-changed-files.sh
-      displayName: 📋 Get Changed Files
+      script: get-changed-files-api.sh
+      displayName: 📋 Get Changed Files (via API)
       env:
-        SYSTEM_PULLREQUEST_TARGETBRANCH: $(System.PullRequest.TargetBranch)
-        SYSTEM_PULLREQUEST_SOURCEBRANCH: $(System.PullRequest.SourceBranch)
-        SYSTEM_PULLREQUEST_SOURCECOMMITID: $(System.PullRequest.SourceCommitId)
-        SYSTEM_PULLREQUEST_TARGETCOMMITID: $(System.PullRequest.TargetCommitId)
+        SYSTEM_COLLECTIONURI: $(System.CollectionUri)
+        SYSTEM_TEAMPROJECT: $(System.TeamProject)
+        BUILD_REPOSITORY_ID: $(Build.Repository.ID)
+        BUILD_REPOSITORY_NAME: $(Build.Repository.Name)
+        SYSTEM_PULLREQUEST_PULLREQUESTID: $(System.PullRequest.PullRequestId)
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
         BUILD_ARTIFACTSTAGINGDIRECTORY: $(Build.ArtifactStagingDirectory)
 
   - template: templates/run-script.yml
     parameters:
-      script: analyze-changes-full-diff.sh
-      displayName: 🔍 Analyze Changes with Copilot (Full Diff)
+      script: analyze-changes-api.sh
+      displayName: 🔍 Analyze Changes with Copilot (via API)
       env:
         SYSTEM_COLLECTIONURI: $(System.CollectionUri)
         SYSTEM_TEAMPROJECT: $(System.TeamProject)
