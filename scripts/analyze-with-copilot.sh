@@ -57,31 +57,57 @@ echo "📊 Encontrados archivos para analizar: $TOTAL_FILES"
 echo ""
 
 # Crear el prompt para Copilot
-ANALYSIS_PROMPT="Genera un comentario de revisión de PR en español, con formato profesional y elegante. Usa títulos, subtítulos y emojis para resaltar el estado de los archivos analizados. 
-- Si un archivo no tiene problemas, indica que está bien.
-- Si se detecta un problema relevante en algún archivo, incluye un fragmento de código (snippet) que muestre la parte problemática, con una breve explicación.
-- Termina con una conclusión o recomendación.
+ANALYSIS_PROMPT="Analiza los archivos de este Pull Request y genera un archivo llamado 'pr-comment.md' con formato profesional y elegante.
 
-Ejemplo de formato:
+INSTRUCCIONES DE FORMATO:
+- Usa títulos, subtítulos y emojis para resaltar el estado
+- Para cada archivo analizado, indica si está correcto o tiene problemas
+- Si hay problemas relevantes, incluye un snippet del código problemático con explicación
+- Termina con una conclusión general
+
+EJEMPLO DE FORMATO:
 
 ---
 ## 📝 Análisis de Pull Request
 
-### 📄 Archivo analizado
-`.devcontainer/devcontainer.json`
+### 📄 \`archivo/ruta/ejemplo.json\`
 
-❌ **Problema detectado:** [Descripción breve]
-```json
-// snippet del código problemático
-```"
+✅ **Estado:** El archivo está bien, no se detectaron problemas relevantes.
+
+### 📄 \`otro/archivo/problematico.cs\`
+
+❌ **Problema detectado:** Falta validación de entrada null
+
+\`\`\`csharp
+public void ProcessData(string input)
+{
+    // ⚠️ PROBLEMA: No se valida si input es null
+    var result = input.ToUpper(); // Puede lanzar NullReferenceException
+}
+\`\`\`
+
+**Recomendación:** Agregar validación de null antes de usar el parámetro.
+
+---
+
+### 📊 Resumen
+- Archivos revisados: X
+- Problemas encontrados: Y
+- Recomendación general: [tu análisis aquí]
+
+IMPORTANTE: Guarda el resultado en un archivo llamado 'pr-comment.md' en el directorio actual."
 
 
 
 # Ejecutar Copilot CLI
 echo "📡 Llamando a GitHub Copilot CLI para generar el archivo de análisis..."
 
+# Get model from environment or use default
+MODEL="${MODEL:-claude-sonnet-4}"
+echo "🤖 Using model: $MODEL"
+
 # Ejecutar copilot en modo no interactivo para que genere el archivo
-copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --add-dir "$(pwd)"
+copilot -p "$ANALYSIS_PROMPT" --allow-all-tools --add-dir "$(pwd)" --model "$MODEL"
 
 # Verificar que el archivo fue creado por Copilot
 cat "./pr-comment.md"

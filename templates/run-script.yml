@@ -1,0 +1,41 @@
+parameters:
+  - name: script
+    type: string
+  - name: args
+    type: string
+    default: ""
+  - name: displayName
+    type: string
+  - name: workingDirectory
+    type: string
+    default: "$(System.DefaultWorkingDirectory)"
+  - name: env
+    type: object
+    default: {}
+
+steps:
+  - bash: |
+      echo "🔧 Running script: ${{ parameters.script }}"
+      cd "${{ parameters.workingDirectory }}"
+      
+      if [ -n "${{ parameters.args }}" ]; then
+        ./scripts/${{ parameters.script }} ${{ parameters.args }}
+      else
+        ./scripts/${{ parameters.script }}
+      fi
+      
+      if [ $? -eq 0 ]; then
+        echo "✅ Script completed successfully"
+      else
+        echo "❌ Script failed with exit code $?"
+        exit 1
+      fi
+    displayName: ${{ parameters.displayName }}
+    workingDirectory: ${{ parameters.workingDirectory }}
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+      GH_TOKEN: $(GH_TOKEN)
+      MODEL: $(MODEL)
+      ${{ if parameters.env }}:
+        ${{ each var in parameters.env }}:
+          ${{ var.key }}: ${{ var.value }}

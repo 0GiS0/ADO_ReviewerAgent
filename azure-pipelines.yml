@@ -22,6 +22,10 @@ pool:
 
 variables:
   - group: "GitHub Copilot CLI"
+  - name: MODEL
+    value: claude-sonnet-4
+  - name: COPILOT_VERSION
+    value: "latest"
   - name: ANALYSIS_DIR
     value: "$(Build.ArtifactStagingDirectory)/pr-analysis"
   - name: DIFF_FILE
@@ -57,6 +61,20 @@ steps:
     displayName: ⚙️ Setup Node.js 22.x
 
   - bash: |
+      NPM_PREFIX=$(npm config get prefix)
+      echo "##vso[task.setvariable variable=NPM_GLOBAL_PATH]${NPM_PREFIX}/lib/node_modules"
+      echo "NPM global path: ${NPM_PREFIX}/lib/node_modules"
+    displayName: 🔍 Detect NPM Global Path
+
+  - task: Cache@2
+    inputs:
+      key: 'npm-global | "$(Agent.OS)" | "copilot" | "$(COPILOT_VERSION)"'
+      path: $(NPM_GLOBAL_PATH)
+      restoreKeys: |
+        npm-global | "$(Agent.OS)" | "copilot"
+    displayName: 📦 Cache Global NPM Packages
+
+  - bash: |
       if ! command -v copilot &> /dev/null; then
         echo "Installing @github/copilot..."
         npm install -g @github/copilot
@@ -66,67 +84,24 @@ steps:
       fi
     displayName: 📦 Install Copilot CLI  
 
-  - bash: |
-      
-      # Execute the script
-      echo "📡 Running get-pr-diff.sh..."
-      ./scripts/get-pr-diff.sh \
-        "$(System.PullRequest.SourceRepositoryUri)" \
-        "$(System.PullRequest.SourceBranch)" \
-        "$(System.PullRequest.TargetBranch)" \
-        "$(AZURE_DEVOPS_EXT_PAT)" \
-        "$(DIFF_FILE)"
-      
-      if [ $? -eq 0 ] && [ -f "$(DIFF_FILE)" ]; then
-        echo "✅ Differences obtained successfully"
-        echo "📊 Size: $(du -h "$(DIFF_FILE)" | cut -f1)"
-      else
-        echo "❌ ERROR: Failed to get diff"
-        exit 1
-      fi
-      
-    displayName: 🔍 Get PR Differences
-    env:
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+  - template: templates/run-script.yml
+    parameters:
+      script: get-pr-diff.sh
+      args: '"$(System.PullRequest.SourceRepositoryUri)" "$(System.PullRequest.SourceBranch)" "$(System.PullRequest.TargetBranch)" "$(AZURE_DEVOPS_EXT_PAT)" "$(DIFF_FILE)"'
+      displayName: 🔍 Get PR Differences
+
+  - template: templates/run-script.yml
+    parameters:
+      script: download-pr-files.sh
+      args: '"$(DIFF_FILE)" "$(System.PullRequest.SourceRepositoryUri)" "$(System.PullRequest.SourceBranch)" "$(System.PullRequest.TargetBranch)" "$(AZURE_DEVOPS_EXT_PAT)" "$(ANALYSIS_DIR)"'
+      displayName: 📁 Download Modified Files
 
   - bash: |
-      # Check if diff file exists
-      if [ ! -f "$(DIFF_FILE)" ]; then
-        echo "❌ ERROR: Diff file not found: $(DIFF_FILE)"
-        exit 1
-      fi
-      
-      # Execute the download script
-      echo "📥 Running download-pr-files.sh..."
-      ./scripts/download-pr-files.sh \
-        "$(DIFF_FILE)" \
-        "$(System.PullRequest.SourceRepositoryUri)" \
-        "$(System.PullRequest.SourceBranch)" \
-        "$(System.PullRequest.TargetBranch)" \
-        "$(AZURE_DEVOPS_EXT_PAT)" \
-        "$(ANALYSIS_DIR)"
-      
-      if [ $? -eq 0 ] && [ -d "$(ANALYSIS_DIR)/source" ]; then
-        echo "✅ Files downloaded successfully"
-        echo "📊 Files in source: $(find "$(ANALYSIS_DIR)/source" -type f | wc -l)"
-      else
-        echo "❌ ERROR: Failed to download files"
-        exit 1
-      fi
-      
-    displayName: 📁 Download Modified Files
-    env:
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
-
-  - bash: |
-      echo "🤖 ANALYZE WITH GITHUB COPILOT CLI"
-      echo "=================================="
-      echo ""      
-     
       # Check if there are files to analyze
       if [ ! -d "$(ANALYSIS_DIR)/source" ] || [ -z "$(ls -A "$(ANALYSIS_DIR)/source" 2>/dev/null)" ]; then
         echo "⚠️  No files to analyze, creating empty comment"
-        cat > "$(COMMENT_FILE)" << EOF
+        mkdir -p "$(ANALYSIS_DIR)/source"
+        cat > "$(ANALYSIS_DIR)/source/pr-comment.md" << EOF
       # 📝 Pull Request Analysis
       
       ⚠️  **No files found to analyze in this PR.**
@@ -139,16 +114,17 @@ steps:
       **Status**: No files to review
       **Recommendation**: Manually verify the PR content
       EOF
-        exit 0
+      else
+        echo "🤖 Running Copilot analysis..."
       fi
-      
-      # Execute analysis with Copilot
-      echo "🔍 Running analyze-with-copilot.sh..."
-      ./scripts/analyze-with-copilot.sh \
-        "$(ANALYSIS_DIR)/source" \
-        "$(COMMENT_FILE)"    
-      
-    displayName: 🤖 Analyze with GitHub Copilot CLI
+    displayName: 🔍 Check Files to Analyze
+
+  - template: templates/run-script.yml
+    parameters:
+      script: analyze-with-copilot.sh
+      args: '"$(ANALYSIS_DIR)/source" "$(ANALYSIS_DIR)/source/pr-comment.md"'
+      displayName: 🤖 Analyze with GitHub Copilot CLI
+      workingDirectory: $(System.DefaultWorkingDirectory)
 
   - bash: |
       echo "� DISPLAY GENERATED ANALYSIS"
@@ -189,10 +165,6 @@ steps:
     displayName: 📄 Display Generated Analysis
 
   - bash: |
-      echo "💬 PUBLISH COMMENT ON PR"
-      echo "======================="
-      echo ""  
-      
       # Extract repository information
       REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
       ORG=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $2}')
@@ -201,25 +173,22 @@ steps:
       PR_ID="$(System.PullRequest.PullRequestId)"
       
       echo "🔍 Repository information:"
-      echo "  - Markdown file: $(ANALYSIS_DIR)/source/pr-comment.md"
       echo "  - Organization: $ORG"
       echo "  - Project: $PROJECT"
       echo "  - Repository: $REPO"
       echo "  - PR ID: $PR_ID"
       
+      echo "##vso[task.setvariable variable=PR_ORG]$ORG"
+      echo "##vso[task.setvariable variable=PR_PROJECT]$PROJECT"
+      echo "##vso[task.setvariable variable=PR_REPO]$REPO"
+      echo "##vso[task.setvariable variable=PR_NUM]$PR_ID"
+    displayName: 📋 Extract PR Info
 
-      echo "📤 Running post-pr-comment.sh..."
-      ./scripts/post-pr-comment.sh \
-        "$(ANALYSIS_DIR)/source/pr-comment.md" \
-        "$ORG" \
-        "$PROJECT" \
-        "$REPO" \
-        "$PR_ID" \
-        "$(AZURE_DEVOPS_EXT_PAT)"     
-      
-    displayName: 💬 Publish Comment on PR
-    env:
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+  - template: templates/run-script.yml
+    parameters:
+      script: post-pr-comment.sh
+      args: '"$(ANALYSIS_DIR)/source/pr-comment.md" "$(PR_ORG)" "$(PR_PROJECT)" "$(PR_REPO)" "$(PR_NUM)" "$(AZURE_DEVOPS_EXT_PAT)"'
+      displayName: 💬 Publish Comment on PR
 
   - bash: |
       echo "📊 COMPLETE ANALYSIS SUMMARY"
@@ -272,27 +241,3 @@ steps:
       ArtifactName: "pr-analysis-complete"
       publishLocation: "Container"
     displayName: 📦 Publish Complete Analysis as Artifact
-
-  - bash: |
-      echo ""
-      echo "🎉 PIPELINE COMPLETED SUCCESSFULLY"
-      echo "=================================="
-      echo ""
-      echo "✅ Executed steps:"
-      echo "  1. ✅ PR differences retrieval"
-      echo "  2. ✅ Modified files download"
-      echo "  3. ✅ Analysis with GitHub Copilot CLI"
-      echo "  4. ✅ PR comment publication"
-      echo ""
-      echo "📦 Available artifacts:"
-      echo "  - pr-analysis-complete: Contains diff, files and complete analysis"
-      echo ""
-      echo "🔗 Useful links:"
-      echo "  - View PR: https://dev.azure.com/$(System.TeamFoundationCollectionUri | sed 's|https://||' | sed 's|/||')/$(System.TeamProject)/_git/$(Build.Repository.Name)/pullrequest/$(System.PullRequest.PullRequestId)"
-      echo "  - View build: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
-      echo ""
-      echo "💡 The review comment has been automatically published on the PR"
-      
-    displayName: 🎉 Pipeline Completed
-
-

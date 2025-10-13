@@ -15,9 +15,14 @@ Este proyecto proporciona una pipeline completa de Azure DevOps que:
 
 ## 🎯 Características
 
-- **Pipeline Completa**: Flujo automatizado de análisis completo de PRs
+- **Pipeline Completa y Mantenible**: Flujo automatizado con templates reutilizables
+- **Templates Reutilizables**: Sistema de templates para facilitar mantenimiento y escalabilidad
+- **Cache de NPM**: Optimización de tiempos de build con cache de paquetes globales
 - **Integración con Azure DevOps API**: Obtención y descarga automática de archivos modificados
-- **Análisis con IA**: Utiliza GitHub Copilot CLI para análisis inteligente de calidad y seguridad
+- **Análisis con IA Avanzado**: Utiliza GitHub Copilot CLI con soporte para múltiples modelos
+- **Comentarios Elegantes**: Formato profesional con emojis, snippets y explicaciones detalladas
+- **Snippets de Código**: Muestra fragmentos de código problemático cuando se detectan issues
+- **Configuración Centralizada**: Variables de modelo y versión fácilmente configurables
 - **Comentarios Automáticos**: Publica comentarios de revisión directamente en las PRs
 - **Pasos Separados**: Pipeline modular con pasos independientes para fácil depuración
 - **Artefactos Completos**: Genera archivos de análisis disponibles como artefactos de build
@@ -123,6 +128,54 @@ Si decides usar el `System.AccessToken` en lugar del PAT personalizado, asegúra
    - Otorga permisos de "Contribute to pull requests"
 
 **Nota:** Al usar `AZURE_DEVOPS_EXT_PAT`, estos permisos del Build Service no son necesarios, ya que el PAT ya tiene los permisos configurados.
+
+#### 4. Configurar Modelo y Versión (Opcional)
+
+En el archivo `azure-pipelines.yml`, puedes configurar:
+
+```yaml
+variables:
+  - group: "GitHub Copilot CLI"
+  - name: MODEL
+    value: claude-sonnet-4  # Cambia el modelo según tu preferencia
+  - name: COPILOT_VERSION
+    value: "latest"         # o especifica una versión fija como "0.0.339"
+```
+
+**Modelos disponibles:**
+- `claude-sonnet-4` (recomendado)
+- `gpt-4o`
+- `o1-preview`
+- `o1-mini`
+
+## 🏗️ Arquitectura
+
+### Templates Reutilizables
+
+El proyecto utiliza templates de Azure DevOps para mejorar la mantenibilidad:
+
+**`templates/run-script.yml`**: Template genérico para ejecutar scripts bash
+- Simplifica la invocación de scripts
+- Maneja errores automáticamente
+- Propaga variables de entorno necesarias
+- Permite personalizar el directorio de trabajo
+
+**Uso del template:**
+```yaml
+- template: templates/run-script.yml
+  parameters:
+    script: mi-script.sh
+    args: '"arg1" "arg2"'
+    displayName: 🔧 Mi Paso
+    workingDirectory: $(Build.SourcesDirectory)
+```
+
+### Cache de NPM
+
+La pipeline implementa cache de paquetes NPM globales para optimizar tiempos:
+- Detecta automáticamente la ruta de NPM global
+- Cachea instalaciones de `@github/copilot`
+- Reduce tiempo de instalación en builds posteriores
 
 ## 📖 Uso
 
@@ -232,12 +285,18 @@ output-directory/
 
 ```
 ReviewerAgent/
-├── azure-pipelines.yml          # Pipeline principal
+├── azure-pipelines.yml              # Pipeline principal
+├── templates/
+│   └── run-script.yml              # Template reutilizable para ejecutar scripts
 ├── scripts/
-│   ├── analyze-with-copilot.sh  # Script de análisis
-│   ├── post-pr-comment.ps1      # Script para publicar comentarios
-│   └── setup-copilot.sh         # Script de configuración
-└── README.md                    # Este archivo
+│   ├── analyze-with-copilot.sh     # Script de análisis con GitHub Copilot
+│   ├── download-pr-files.sh        # Descarga archivos modificados del PR
+│   ├── get-pr-diff.sh              # Obtiene diferencias del PR
+│   ├── post-pr-comment.sh          # Publica comentarios en la PR
+│   ├── get-and-download-pr-files.sh # Wrapper: diff + descarga
+│   ├── complete-pr-analysis.sh     # Flujo completo: diff + descarga + análisis
+│   └── example-usage.sh            # Ejemplos de uso
+└── README.md                        # Este archivo
 ```
 
 ## 🔧 Configuración Avanzada
