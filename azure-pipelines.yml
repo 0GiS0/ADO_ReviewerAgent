@@ -26,7 +26,8 @@ steps:
       echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
       echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
       echo "  - Source Commit: $(System.PullRequest.SourceCommitId)"
-      echo "  - Target Commit: $(System.PullRequest.TargetCommitId)"
+      echo "  - Build Repository: $(Build.Repository.Uri)"
+      echo "  - Build Commit: $(Build.SourceVersion)"
       echo ""      
       
     displayName: 📋 Mostrar Información del PR
