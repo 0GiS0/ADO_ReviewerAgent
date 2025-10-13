@@ -32,131 +32,59 @@ steps:
       
     displayName: 📋 Mostrar Información del PR
 
-  - bash: |
-      echo "🌐 Obteniendo diferencias usando Azure DevOps API REST..."
-      
-      # Extraer información del repositorio fuente
-      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      echo "URI original: $SOURCE_REPO_URI"
-      
-      # Remover el protocolo https:// y el usuario existente
-      TEMP_URI=$(echo $SOURCE_REPO_URI | sed 's|https://[^@]*@||')
-      echo "URI procesada: $TEMP_URI"
-      
-      # Obtener la organización
-      ORG=$(echo $TEMP_URI | awk -F'/' '{print $2}')
-      echo "  - ORGANIZATION: $ORG"
-      
-      # Obtener el proyecto (decodificar %20 a espacios)
-      PROJECT=$(echo $TEMP_URI | awk -F'/' '{print $3}' | sed 's/%20/ /g')
-      echo "  - PROJECT: $PROJECT"
-      
-      # Obtener el repositorio
-      REPO=$(echo $TEMP_URI | awk -F'/' '{print $5}')
-      echo "  - REPOSITORY: $REPO"
+  - template: templates/run-script.yml
+    parameters:
+      script: get-pr-diff.sh
+      displayName: 🌐 Obtener Diferencias usando Azure DevOps API
+      args: '"$(System.PullRequest.SourceRepositoryUri)" "$(System.PullRequest.SourceBranch)" "$(System.PullRequest.TargetBranch)" "$AZURE_DEVOPS_EXT_PAT" "$(DIFF_OUTPUT).json"'
+      env:
+        AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
 
-      # Obtener las ramas (limpiar prefijos refs/heads/ si existen)
-      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
-      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
-      SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
-      TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
+  - bash: |
+      echo "📝 Procesando respuesta para el pipeline..."
       
-      echo "  - SOURCE BRANCH: $SOURCE_BRANCH_CLEAN"
-      echo "  - TARGET BRANCH: $TARGET_BRANCH_CLEAN"
-      
-      # Codificar el proyecto para la URL
-      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
-      
-      # Construir la URL de la API correctamente
-      API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/diffs/commits"
-      echo "  - API URL: $API_URL"
-      
-      # Parámetros de la API según la documentación oficial
-      PARAMS="baseVersion=$TARGET_BRANCH_CLEAN&targetVersion=$SOURCE_BRANCH_CLEAN&baseVersionType=branch&targetVersionType=branch&api-version=7.2-preview.1"
-      FULL_URL="$API_URL?$PARAMS"
-      echo "  - FULL URL: $FULL_URL"
-      
-      echo ""
-      echo "🌐 Llamando a Azure DevOps API..."
-      
-      # Realizar la llamada a la API usando curl con PAT
-      echo "🔐 Usando AZURE_DEVOPS_EXT_PAT para autenticación..."
-      
-      # Verificar que el PAT esté disponible
-      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
-        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
+      # Verificar que el archivo JSON se haya creado
+      if [ ! -f "$(DIFF_OUTPUT).json" ]; then
+        echo "❌ ERROR: No se encontró el archivo de respuesta JSON"
         exit 1
       fi
+
       
-      # Generar el header de autenticación Basic correctamente
-      AUTH_HEADER=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64 -w 0)
-      echo "🔑 Header de autenticación generado"
-      
-      curl -s \
-        -H "Authorization: Basic $AUTH_HEADER" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        "$FULL_URL" > "$(DIFF_OUTPUT).json"
-      
-      # Verificar si la llamada fue exitosa
-      if [ $? -ne 0 ]; then
-        echo "❌ ERROR: Falló la llamada a la API"
-        exit 1
-      fi
-      
-      # Verificar que la respuesta no sea un error
-      if grep -q '"error"' "$(DIFF_OUTPUT).json" 2>/dev/null; then
-        echo "❌ ERROR: La API devolvió un error:"
-        cat "$(DIFF_OUTPUT).json"
-        exit 1
-      fi
-      
-      echo "✅ Respuesta de la API guardada en: $(DIFF_OUTPUT).json"
-      
-      # Convertir la respuesta JSON a formato diff legible
-      echo ""
-      echo "📝 Procesando respuesta de la API..."
-      
-      # Extraer información básica del diff
-      echo "📊 Resumen del diff:" > "$(DIFF_OUTPUT)"
-      echo "Comparando: $TARGET_BRANCH_CLEAN -> $SOURCE_BRANCH_CLEAN" >> "$(DIFF_OUTPUT)"
+      # Crear un resumen legible del diff
+      echo "📊 Resumen del diff generado por Azure DevOps API" > "$(DIFF_OUTPUT)"
       echo "Fecha: $(date)" >> "$(DIFF_OUTPUT)"
+      echo "PR #: $(System.PullRequest.PullRequestId)" >> "$(DIFF_OUTPUT)"
+      echo "Source: $(System.PullRequest.SourceBranch) -> Target: $(System.PullRequest.TargetBranch)" >> "$(DIFF_OUTPUT)"
       echo "" >> "$(DIFF_OUTPUT)"
       
-      # Verificar si jq está disponible y si el JSON es válido
-      if command -v jq &> /dev/null; then
-        echo "✅ jq está disponible, procesando JSON..."
-        
-        # Verificar si el JSON es válido
+      # Agregar estadísticas si jq está disponible
+      if command -v jq &> /dev/null && [ -f "$(DIFF_OUTPUT).json" ]; then
         if jq empty "$(DIFF_OUTPUT).json" 2>/dev/null; then
-          echo "✅ JSON válido recibido de la API"
-          
-          echo "📁 Archivos modificados:" >> "$(DIFF_OUTPUT)"
-          jq -r '.changes[]?.item?.path // empty' "$(DIFF_OUTPUT).json" | sort | uniq >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los archivos modificados" >> "$(DIFF_OUTPUT)"
+          echo "📊 Estadísticas de cambios:" >> "$(DIFF_OUTPUT)"
+          echo "  - Total: $(jq '.changes | length' "$(DIFF_OUTPUT).json" 2>/dev/null || echo 'N/A')" >> "$(DIFF_OUTPUT)"
+          echo "  - Añadidos: $(jq '.changeCounts.Add // 0' "$(DIFF_OUTPUT).json" 2>/dev/null || echo '0')" >> "$(DIFF_OUTPUT)"
+          echo "  - Editados: $(jq '.changeCounts.Edit // 0' "$(DIFF_OUTPUT).json" 2>/dev/null || echo '0')" >> "$(DIFF_OUTPUT)"
+          echo "  - Eliminados: $(jq '.changeCounts.Delete // 0' "$(DIFF_OUTPUT).json" 2>/dev/null || echo '0')" >> "$(DIFF_OUTPUT)"
           echo "" >> "$(DIFF_OUTPUT)"
           
-          echo "🔍 Detalles de los cambios:" >> "$(DIFF_OUTPUT)"
-          jq -r '.changes[]? | "Archivo: \(.item.path // "unknown")\nTipo de cambio: \(.changeType // "unknown")\n"' "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los detalles de cambios" >> "$(DIFF_OUTPUT)"
+          echo "📁 Archivos modificados:" >> "$(DIFF_OUTPUT)"
+          jq -r '.changes[]?.item?.path // empty' "$(DIFF_OUTPUT).json" 2>/dev/null >> "$(DIFF_OUTPUT)"
+          echo "" >> "$(DIFF_OUTPUT)"
+          
+          echo "🔍 Detalles de cambios:" >> "$(DIFF_OUTPUT)"
+          jq -r '.changes[]? | "- \(.item.path // "unknown") (\(.changeType // "unknown"))"' "$(DIFF_OUTPUT).json" 2>/dev/null >> "$(DIFF_OUTPUT)"
         else
-          echo "❌ ERROR: JSON inválido recibido de la API"
-          echo "Contenido de la respuesta:"
-          cat "$(DIFF_OUTPUT).json"
-          echo ""
-          echo "⚠️  Guardando respuesta completa en el diff" >> "$(DIFF_OUTPUT)"
+          echo "⚠️  JSON inválido - guardando respuesta completa" >> "$(DIFF_OUTPUT)"
           cat "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)"
         fi
       else
-        echo "⚠️  jq no está disponible, guardando respuesta JSON completa" >> "$(DIFF_OUTPUT)"
+        echo "⚠️  jq no disponible - guardando respuesta JSON" >> "$(DIFF_OUTPUT)"
         cat "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)"
       fi
       
-      echo ""
       echo "✅ Diff procesado y guardado en: $(DIFF_OUTPUT)"
       
-    displayName: 🌐 Obtener Diferencias usando API REST
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-      AZURE_DEVOPS_EXT_PAT: $(AZURE_DEVOPS_EXT_PAT)
+    displayName: 📝 Procesar Respuesta de la API
 
   - bash: |
       echo "📄 Resumen del análisis usando API REST:"
