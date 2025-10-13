@@ -32,22 +32,35 @@ steps:
     displayName: 📋 Mostrar Información del PR
 
   - bash: |
-      echo "📥 Clonar repositorio fuente del PR..."
+      echo "📥 Clonar repositorio fuente $(System.PullRequest.SourceRepositoryUri)"
       
       # Obtener la URI del repositorio fuente
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      # Obtener la ORG de la URI
-      ORG=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $3}')
+      echo "URI original: $SOURCE_REPO_URI"
+      
+      # Remover el protocolo https:// y el usuario existente
+      TEMP_URI=$(echo $SOURCE_REPO_URI | sed 's|https://[^@]*@||')
+      echo "Sin protocolo y usuario: $TEMP_URI"
+      
+      # Obtener el dominio (dev.azure.com)
+      DOMAIN=$(echo $TEMP_URI | awk -F'/' '{print $1}')
+      echo "  - DOMAIN: $DOMAIN"
+      
+      # Obtener la organización
+      ORG=$(echo $TEMP_URI | awk -F'/' '{print $2}')
       echo "  - ORG: $ORG"
-      #Obtener el proyecto de la URI
-      PROJECT=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $4}')
+      
+      # Obtener el proyecto (decodificar %20 a espacios)
+      PROJECT=$(echo $TEMP_URI | awk -F'/' '{print $3}' | sed 's/%20/ /g')
       echo "  - PROJECT: $PROJECT"
-      #Obtener el repositorio de la URI
-      REPO=$(echo $SOURCE_REPO_URI | awk -F'/' '{print $5}')
+      
+      # Obtener el repositorio
+      REPO=$(echo $TEMP_URI | awk -F'/' '{print $5}')
       echo "  - REPO: $REPO"
 
-      # montar de nuevo la URL con el PAT de AZURE_DEVOPS_EXT_PAT:
-      AUTHENTICATED_REPO_URI="https://$(AZURE_DEVOPS_EXT_PAT)@$ORG/$PROJECT/_git/$REPO"
+      # Montar de nuevo la URL con el PAT, codificando los espacios del proyecto
+      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
+      AUTHENTICATED_REPO_URI="https://$(AZURE_DEVOPS_EXT_PAT)@$DOMAIN/$ORG/$PROJECT_ENCODED/_git/$REPO"
       echo "  - AUTHENTICATED_REPO_URI: $AUTHENTICATED_REPO_URI"
 
       # Clonar el repositorio en el directorio source-repo
