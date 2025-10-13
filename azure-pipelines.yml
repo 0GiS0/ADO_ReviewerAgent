@@ -66,12 +66,12 @@ steps:
       # Codificar el proyecto para la URL
       PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
       
-      # Construir la URL de la API
+      # Construir la URL de la API correctamente
       API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/diffs/commits"
       echo "  - API URL: $API_URL"
       
-      # Parámetros de la API
-      PARAMS="baseVersion=$TARGET_BRANCH_CLEAN&targetVersion=$SOURCE_BRANCH_CLEAN&api-version=7.1-preview.1"
+      # Parámetros de la API según la documentación oficial
+      PARAMS="baseVersion=$TARGET_BRANCH_CLEAN&targetVersion=$SOURCE_BRANCH_CLEAN&baseVersionType=branch&targetVersionType=branch&api-version=7.2-preview.1"
       FULL_URL="$API_URL?$PARAMS"
       echo "  - FULL URL: $FULL_URL"
       
