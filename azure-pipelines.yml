@@ -80,9 +80,21 @@ steps:
       
       # Realizar la llamada a la API usando curl con PAT
       echo "🔐 Usando AZURE_DEVOPS_EXT_PAT para autenticación..."
+      
+      # Verificar que el PAT esté disponible
+      if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
+        echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
+        exit 1
+      fi
+      
+      # Generar el header de autenticación Basic correctamente
+      AUTH_HEADER=$(printf "%s:" "$AZURE_DEVOPS_EXT_PAT" | base64 -w 0)
+      echo "🔑 Header de autenticación generado"
+      
       curl -s \
-        -H "Authorization: Basic $(echo -n ":$AZURE_DEVOPS_EXT_PAT" | base64)" \
+        -H "Authorization: Basic $AUTH_HEADER" \
         -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
         "$FULL_URL" > "$(DIFF_OUTPUT).json"
       
       # Verificar si la llamada fue exitosa
