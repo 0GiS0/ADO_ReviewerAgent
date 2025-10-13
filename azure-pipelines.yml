@@ -39,24 +39,33 @@ steps:
       
       # Extraer el nombre del repositorio del source URI
       SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
-      if [ -n "$SOURCE_REPO_URI" ] && [ "$SOURCE_REPO_URI" != "$(Build.Repository.Uri)" ]; then
+      BUILD_REPO_URI="$(Build.Repository.Uri)"
+      
+      echo "DEBUG: SOURCE_REPO_URI='$SOURCE_REPO_URI'"
+      echo "DEBUG: BUILD_REPO_URI='$BUILD_REPO_URI'"
+      
+      # SIEMPRE usar el source repository URI, no el build repository
+      if [ -n "$SOURCE_REPO_URI" ]; then
         # El URI tiene formato: https://org@dev.azure.com/org/Project/_git/RepoName
         SOURCE_REPO_NAME=$(echo "$SOURCE_REPO_URI" | sed 's|.*/||')
-        echo "  - Source Repository Name: $SOURCE_REPO_NAME"
+        echo "  - Extracted Source Repository Name: $SOURCE_REPO_NAME"
         
         # Obtener el Repository ID del source repo via API
         API_URL="$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$SOURCE_REPO_NAME?api-version=7.0"
-        echo "  - API URL: $API_URL"
+        echo "  - Calling API: $API_URL"
         
         # Configurar autenticación
         if [ -n "$AZURE_DEVOPS_EXT_PAT" ]; then
           AUTH_HEADER="Authorization: Basic $(echo -n ":$AZURE_DEVOPS_EXT_PAT" | base64)"
+          echo "  - Using PAT authentication"
         else
           AUTH_HEADER="Authorization: Bearer $(System.AccessToken)"
+          echo "  - Using System.AccessToken"
         fi
         
         # Obtener info del repositorio
         REPO_INFO=$(curl -s -H "$AUTH_HEADER" "$API_URL")
+        echo "DEBUG: API Response: $REPO_INFO"
         
         # Verificar si jq está disponible
         if command -v jq &> /dev/null; then
@@ -67,20 +76,20 @@ steps:
         fi
         
         if [ -z "$SOURCE_REPO_ID" ]; then
-          echo "⚠️ Could not get Source Repository ID, using Build Repository"
-          SOURCE_REPO_NAME="$(Build.Repository.Name)"
-          SOURCE_REPO_ID="$(Build.Repository.ID)"
+          echo "❌ ERROR: Could not get Source Repository ID from API"
+          echo "This means the source repository '$SOURCE_REPO_NAME' may not exist or authentication failed"
+          exit 1
         else
-          echo "  - Source Repository ID: $SOURCE_REPO_ID"
+          echo "✅ Source Repository ID: $SOURCE_REPO_ID"
         fi
         
         # Exportar como variables para los siguientes pasos
         echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$SOURCE_REPO_NAME"
         echo "##vso[task.setvariable variable=SOURCE_REPO_ID]$SOURCE_REPO_ID"
       else
-        echo "  - Using Build Repository as Source (same repo PR)"
-        echo "##vso[task.setvariable variable=SOURCE_REPO_NAME]$(Build.Repository.Name)"
-        echo "##vso[task.setvariable variable=SOURCE_REPO_ID]$(Build.Repository.ID)"
+        echo "❌ ERROR: System.PullRequest.SourceRepositoryUri is empty"
+        echo "This pipeline should only run on Pull Requests"
+        exit 1
       fi
     displayName: 📋 Detect Source Repository
     env:
