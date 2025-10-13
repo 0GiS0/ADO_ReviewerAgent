@@ -1,13 +1,3 @@
-# Complete PR Analysis Pipeline with GitHub Copilot
-# 
-# ⚠️  REQUIRED CONFIGURATION:
-# 1. Go to your pipeline in Azure DevOps > Edit > Variables
-# 2. Add new variable: AZURE_DEVOPS_EXT_PAT
-# 3. Check "Keep this value secret" ✅
-# 4. Enter your Personal Access Token (PAT)
-# 5. The PAT must have "Code (read)" and "Pull Request (contribute)" permissions
-# 6. Install GitHub Copilot CLI on the agent or use an image that includes it
-#
 trigger: none
 
 pr:
@@ -34,9 +24,6 @@ variables:
     value: "pr-comment.md"
 
 steps:
-  - script: echo "🚀 Starting complete PR analysis pipeline with GitHub Copilot"
-    displayName: 🚀 Start
-
   - bash: |
       echo "📋 Pull Request Information:"
       echo "  - Repository URI: $(System.PullRequest.SourceRepositoryUri)"
@@ -127,44 +114,6 @@ steps:
       workingDirectory: $(System.DefaultWorkingDirectory)
 
   - bash: |
-      echo "� DISPLAY GENERATED ANALYSIS"
-      echo "=============================="
-      echo ""
-      
-      if [ -f "$(COMMENT_FILE)" ]; then
-        echo "✅ Analysis file found: $(COMMENT_FILE)"
-        echo "📊 File size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
-        echo "📄 Lines: $(wc -l < "$(COMMENT_FILE)")"
-        echo "📝 Characters: $(wc -c < "$(COMMENT_FILE)")"
-        echo ""
-        echo "📋 CONTENT PREVIEW:"
-        echo "==================="
-        
-        # Show first 50 lines of the analysis
-        head -50 "$(ANALYSIS_DIR)/source/pr-comment.md" || cat "$(ANALYSIS_DIR)/source/pr-comment.md"
-        
-        # If file is longer than 50 lines, show indication
-        TOTAL_LINES=$(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")
-        if [ $TOTAL_LINES -gt 50 ]; then
-          echo ""
-          echo "... (showing first 50 lines of $TOTAL_LINES total lines)"
-          echo ""
-          echo "📋 LAST 10 LINES:"
-          echo "=================="
-          tail -10 "$(ANALYSIS_DIR)/source/pr-comment.md"
-        fi
-        
-        echo ""
-        echo "✅ Analysis content verified"
-      else
-        echo "❌ ERROR: Analysis file not found: $(ANALYSIS_DIR)/source/pr-comment.md"
-        echo "🔍 Files in staging directory:"
-        ls -la "$(Build.ArtifactStagingDirectory)" || echo "Directory not found"
-      fi
-      
-    displayName: 📄 Display Generated Analysis
-
-  - bash: |
       # Extract repository information
       REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
       ORG=$(echo "$REPO_URI" | sed 's|https://[^@]*@||' | awk -F'/' '{print $2}')
@@ -189,51 +138,6 @@ steps:
       script: post-pr-comment.sh
       args: '"$(ANALYSIS_DIR)/source/pr-comment.md" "$(PR_ORG)" "$(PR_PROJECT)" "$(PR_REPO)" "$(PR_NUM)" "$(AZURE_DEVOPS_EXT_PAT)"'
       displayName: 💬 Publish Comment on PR
-
-  - bash: |
-      echo "📊 COMPLETE ANALYSIS SUMMARY"
-      echo "==============================="
-      echo ""
-      echo "📋 PR Information:"
-      echo "  - PR #: $(System.PullRequest.PullRequestId)"
-      echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
-      echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
-      echo ""
-      
-      # Show diff statistics
-      if [ -f "$(DIFF_FILE)" ]; then
-        echo "🔍 Diff statistics:"
-        echo "  - Diff file: $(DIFF_FILE)"
-        echo "  - Size: $(du -h "$(DIFF_FILE)" | cut -f1)"
-        
-        if command -v jq &> /dev/null && jq empty "$(DIFF_FILE)" 2>/dev/null; then
-          echo "  - Total changes: $(jq '.changes | length' "$(DIFF_FILE)" 2>/dev/null || echo 'N/A')"
-          echo "  - Added files: $(jq '.changeCounts.Add // 0' "$(DIFF_FILE)" 2>/dev/null)"
-          echo "  - Edited files: $(jq '.changeCounts.Edit // 0' "$(DIFF_FILE)" 2>/dev/null)"
-          echo "  - Deleted files: $(jq '.changeCounts.Delete // 0' "$(DIFF_FILE)" 2>/dev/null)"
-        fi
-      fi
-      
-      # Show downloaded files statistics
-      if [ -d "$(ANALYSIS_DIR)" ]; then
-        echo ""
-        echo "📁 Downloaded files:"
-        echo "  - Directory: $(ANALYSIS_DIR)"
-        echo "  - Source files: $(find "$(ANALYSIS_DIR)/source" -type f 2>/dev/null | wc -l)"
-        echo "  - Target files: $(find "$(ANALYSIS_DIR)/target" -type f 2>/dev/null | wc -l)"
-      fi
-      
-      # Show comment information
-      if [ -f "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
-        echo ""
-        echo "💬 Generated comment:"
-        echo "  - File: $(ANALYSIS_DIR)/source/pr-comment.md"
-        echo "  - Size: $(du -h "$(ANALYSIS_DIR)/source/pr-comment.md" | cut -f1)"
-        echo "  - Lines: $(wc -l < "$(ANALYSIS_DIR)/source/pr-comment.md")"
-        echo "  - Characters: $(wc -c < "$(ANALYSIS_DIR)/source/pr-comment.md")"
-      fi
-      
-    displayName: 📊 Show Final Summary
 
   - task: PublishBuildArtifacts@1
     inputs:
