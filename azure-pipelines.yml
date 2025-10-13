@@ -50,16 +50,14 @@ steps:
     displayName: 📦 Cache Global NPM Packages
 
   - bash: |
-      if ! command -v gh &> /dev/null; then
-        echo "Installing GitHub CLI and Copilot..."
+      if ! command -v copilot &> /dev/null; then
+        echo "Installing @github/copilot..."
         npm install -g @github/copilot
       else
-        echo "✅ GitHub Copilot CLI already installed (from cache)"
+        echo "✅ @github/copilot already installed (from cache)"
         copilot --version
       fi
     displayName: 📦 Install Copilot CLI
-    env:
-      GITHUB_TOKEN: $(GITHUB_TOKEN)
 
   - template: templates/run-script.yml
     parameters:
