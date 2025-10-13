@@ -210,7 +210,7 @@ steps:
 
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
-        "$(ANALYSIS_DIR)/source/pr-comment.md" \
+        "test.md" \
         "$ORG" \
         "$PROJECT" \
         "$REPO" \
