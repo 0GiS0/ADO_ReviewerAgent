@@ -56,7 +56,7 @@ fi
 PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
 
 # Construir la URL de la API
-API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads"
+API_URL="https://dev.azure.com/$ORGANIZATION/$PROJECT_ENCODED/_apis/git/repositories/$REPOSITORY/pullRequests/$PR_ID/threads?api-version=7.1"
 echo "🔗 API URL: $API_URL"
 
 # Leer el contenido del archivo y prepararlo para JSON
@@ -93,20 +93,59 @@ AUTH_HEADER=$(printf "%s:" "$PAT" | base64)
 echo ""
 echo "🌐 Publicando comentario en la PR..."
 
+# Debug: Show payload content (first 200 chars)
+echo "🔍 Payload preview (first 200 chars):"
+head -c 200 "$PAYLOAD_FILE"
+echo ""
+echo ""
+
+# Debug: Show authentication header length (without exposing actual PAT)
+echo "🔑 Auth header length: ${#AUTH_HEADER} characters"
+
+# Test connectivity first
+echo "🌐 Testing basic connectivity to Azure DevOps..."
+CONNECTIVITY_TEST=$(curl -s -w "HTTPSTATUS:%{http_code}" -I "https://dev.azure.com/$ORGANIZATION" --connect-timeout 10)
+CONNECT_CODE=$(echo "$CONNECTIVITY_TEST" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+echo "📡 Connectivity test result: $CONNECT_CODE"
+
 # Realizar la llamada a la API
+echo "🚀 Making API call..."
 HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+  --connect-timeout 30 \
+  --max-time 60 \
   -X POST \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d @"$PAYLOAD_FILE" \
-  "$API_URL?api-version=7.2-preview.1")
+  "$API_URL")
 
 # Separar código HTTP del contenido
 HTTP_CODE=$(echo "$HTTP_RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
 RESPONSE_BODY=$(echo "$HTTP_RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
 
 echo "📡 Código de respuesta HTTP: $HTTP_CODE"
+
+# Debug: Show response details if HTTP_CODE is empty or 000
+if [ -z "$HTTP_CODE" ] || [ "$HTTP_CODE" = "000" ]; then
+    echo "🔍 DEBUG: Curl command failed or returned code 000"
+    echo "🔍 Full response: $HTTP_RESPONSE"
+    echo "🔍 Response length: ${#HTTP_RESPONSE} characters"
+    
+    # Check if curl is available and working
+    if ! command -v curl &> /dev/null; then
+        echo "❌ ERROR: curl command not found"
+        exit 1
+    fi
+    
+    # Try a simple test to see if curl can reach the internet
+    echo "🌐 Testing basic internet connectivity..."
+    if curl -s --connect-timeout 5 --head "https://httpbin.org/get" > /dev/null; then
+        echo "✅ Internet connectivity works"
+    else
+        echo "❌ Internet connectivity failed"
+    fi
+fi
 
 # Limpiar archivo temporal
 rm -f "$PAYLOAD_FILE"

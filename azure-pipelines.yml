@@ -200,7 +200,45 @@ steps:
     displayName: 🤖 Analyze with GitHub Copilot CLI
 
   - bash: |
-      echo "💬 STEP 4: Publishing comment on PR..."
+      echo "� DISPLAY GENERATED ANALYSIS"
+      echo "=============================="
+      echo ""
+      
+      if [ -f "$(COMMENT_FILE)" ]; then
+        echo "✅ Analysis file found: $(COMMENT_FILE)"
+        echo "📊 File size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
+        echo "📄 Lines: $(wc -l < "$(COMMENT_FILE)")"
+        echo "📝 Characters: $(wc -c < "$(COMMENT_FILE)")"
+        echo ""
+        echo "📋 CONTENT PREVIEW:"
+        echo "==================="
+        
+        # Show first 50 lines of the analysis
+        head -50 "$(COMMENT_FILE)" || cat "$(COMMENT_FILE)"
+        
+        # If file is longer than 50 lines, show indication
+        TOTAL_LINES=$(wc -l < "$(COMMENT_FILE)")
+        if [ $TOTAL_LINES -gt 50 ]; then
+          echo ""
+          echo "... (showing first 50 lines of $TOTAL_LINES total lines)"
+          echo ""
+          echo "📋 LAST 10 LINES:"
+          echo "=================="
+          tail -10 "$(COMMENT_FILE)"
+        fi
+        
+        echo ""
+        echo "✅ Analysis content verified"
+      else
+        echo "❌ ERROR: Analysis file not found: $(COMMENT_FILE)"
+        echo "🔍 Files in staging directory:"
+        ls -la "$(Build.ArtifactStagingDirectory)" || echo "Directory not found"
+      fi
+      
+    displayName: 📄 Display Generated Analysis
+
+  - bash: |
+      echo "�💬 STEP 4: Publishing comment on PR..."
       
       # Check if script exists
       if [ ! -f "./scripts/post-pr-comment.sh" ]; then
