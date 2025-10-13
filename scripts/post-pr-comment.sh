@@ -65,23 +65,14 @@ COMMENT_CONTENT=$(cat "$COMMENT_FILE")
 COMMENT_SIZE=$(wc -c < "$COMMENT_FILE")
 echo "📊 Tamaño del comentario: $COMMENT_SIZE bytes"
 
-# Crear el payload JSON usando jq para escapar correctamente
-# Verificar si jq está disponible
-if command -v jq &> /dev/null; then
-    echo "🔧 Using jq for JSON escaping..."
-    ESCAPED_CONTENT=$(echo "$COMMENT_CONTENT" | jq -Rs .)
-    ESCAPED_CONTENT=${ESCAPED_CONTENT#\"} # Remove leading quote
-    ESCAPED_CONTENT=${ESCAPED_CONTENT%\"} # Remove trailing quote
-else
-    echo "⚠️  jq not available, using manual escaping..."
-    # Escapar caracteres especiales para JSON manualmente
-    ESCAPED_CONTENT=$(printf '%s' "$COMMENT_CONTENT" | \
-        sed 's/\\/\\\\/g' | \
-        sed 's/"/\\"/g' | \
-        sed 's/	/\\t/g' | \
-        awk '{printf "%s\\n", $0}' | \
-        sed 's/\\n$//')
-fi
+# Crear el payload JSON usando el método que funciona en test-pr-comment.sh
+echo "🔧 Using manual JSON escaping (same method as test script)..."
+# Escapar contenido para JSON - método simple y confiable
+ESCAPED_CONTENT=$(printf '%s' "$COMMENT_CONTENT" | \
+    sed 's/\\/\\\\/g' | \
+    sed 's/"/\\"/g' | \
+    awk '{printf "%s\\n", $0}' | \
+    sed 's/\\n$//')
 
 # Crear archivo temporal con el payload
 PAYLOAD_FILE="/tmp/pr-comment-payload-$$.json"
@@ -122,7 +113,7 @@ CONNECTIVITY_TEST=$(curl -s -w "HTTPSTATUS:%{http_code}" -I "https://dev.azure.c
 CONNECT_CODE=$(echo "$CONNECTIVITY_TEST" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
 echo "📡 Connectivity test result: $CONNECT_CODE"
 
-# Realizar la llamada a la API
+# Realizar la llamada a la API (using exact same method as test script)
 echo "🚀 Making API call..."
 HTTP_RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
   --connect-timeout 30 \

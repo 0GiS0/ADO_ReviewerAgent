@@ -182,10 +182,22 @@ steps:
         "$(COMMENT_FILE)"
       
       # Check if analysis file was created successfully (regardless of exit code)
+      # First check if analyze script moved the file to the expected location
       if [ -f "$(COMMENT_FILE)" ] && [ -s "$(COMMENT_FILE)" ]; then
         echo "✅ Analysis completed successfully"
         echo "📊 Comment size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
         echo "📄 Comment lines: $(wc -l < "$(COMMENT_FILE)")"
+      # If not, check if it's still in the source directory and move it
+      elif [ -f "$(ANALYSIS_DIR)/source/pr-comment.md" ] && [ -s "$(ANALYSIS_DIR)/source/pr-comment.md" ]; then
+        echo "📁 Moving analysis file from source directory..."
+        cp "$(ANALYSIS_DIR)/source/pr-comment.md" "$(COMMENT_FILE)"
+        if [ -f "$(COMMENT_FILE)" ] && [ -s "$(COMMENT_FILE)" ]; then
+          echo "✅ Analysis completed successfully (moved from source)"
+          echo "📊 Comment size: $(du -h "$(COMMENT_FILE)" | cut -f1)"
+          echo "📄 Comment lines: $(wc -l < "$(COMMENT_FILE)")"
+        else
+          echo "❌ Failed to move analysis file"
+        fi
       else
         echo "⚠️  Analysis failed, creating error comment"
         cat > "$(COMMENT_FILE)" << EOF
@@ -298,7 +310,7 @@ steps:
       # Execute the publishing script
       echo "📤 Running post-pr-comment.sh..."
       ./scripts/post-pr-comment.sh \
-        "$(ANALYSIS_DIR)/source/pr-comment.md" \
+        "$(COMMENT_FILE)" \
         "$ORG" \
         "$PROJECT" \
         "$REPO" \
