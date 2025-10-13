@@ -35,13 +35,34 @@ steps:
   - bash: |
       echo "🌐 Ejecutando script get-pr-diff.sh..."
       
+      # Debug: Mostrar información de las variables
+      echo "🔍 Debug - Variables disponibles:"
+      echo "  - PWD: $(pwd)"
+      echo "  - AZURE_DEVOPS_EXT_PAT length: ${#AZURE_DEVOPS_EXT_PAT}"
+      echo "  - Source URI: $(System.PullRequest.SourceRepositoryUri)"
+      echo "  - Source Branch: $(System.PullRequest.SourceBranch)"
+      echo "  - Target Branch: $(System.PullRequest.TargetBranch)"
+      echo "  - Output File: $(DIFF_OUTPUT).json"
+      
+      # Verificar que el script existe
+      if [ ! -f "./scripts/get-pr-diff.sh" ]; then
+        echo "❌ ERROR: Script get-pr-diff.sh no encontrado"
+        ls -la ./scripts/
+        exit 1
+      fi
+      
       # Verificar que el PAT esté disponible
       if [ -z "$AZURE_DEVOPS_EXT_PAT" ]; then
         echo "❌ ERROR: AZURE_DEVOPS_EXT_PAT no está configurado"
         exit 1
       fi
       
+      echo "✅ Todas las verificaciones pasaron, ejecutando script..."
+      
       # Ejecutar el script directamente con los parámetros
+      echo "📋 Comando a ejecutar:"
+      echo "./scripts/get-pr-diff.sh \"$(System.PullRequest.SourceRepositoryUri)\" \"$(System.PullRequest.SourceBranch)\" \"$(System.PullRequest.TargetBranch)\" \"[PAT_HIDDEN]\" \"$(DIFF_OUTPUT).json\""
+      
       ./scripts/get-pr-diff.sh \
         "$(System.PullRequest.SourceRepositoryUri)" \
         "$(System.PullRequest.SourceBranch)" \
@@ -49,8 +70,20 @@ steps:
         "$AZURE_DEVOPS_EXT_PAT" \
         "$(DIFF_OUTPUT).json"
       
-      if [ $? -ne 0 ]; then
-        echo "❌ ERROR: El script get-pr-diff.sh falló"
+      SCRIPT_EXIT_CODE=$?
+      echo "📊 Script terminó con código: $SCRIPT_EXIT_CODE"
+      
+      if [ $SCRIPT_EXIT_CODE -ne 0 ]; then
+        echo "❌ ERROR: El script get-pr-diff.sh falló con código $SCRIPT_EXIT_CODE"
+        exit 1
+      fi
+      
+      # Verificar que se creó el archivo de salida
+      if [ -f "$(DIFF_OUTPUT).json" ]; then
+        echo "✅ Archivo JSON creado exitosamente: $(DIFF_OUTPUT).json"
+        echo "📊 Tamaño: $(du -h "$(DIFF_OUTPUT).json" | cut -f1)"
+      else
+        echo "❌ ERROR: No se creó el archivo JSON esperado"
         exit 1
       fi
       

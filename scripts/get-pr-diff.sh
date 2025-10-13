@@ -75,11 +75,27 @@ echo "🔑 Header de autenticación generado"
 
 # Realizar la llamada a la API
 echo "📡 Ejecutando curl..."
-curl -s \
+echo "🔍 Debug curl - Headers y URL:"
+echo "  - Authorization: Basic [HEADER_HIDDEN]"
+echo "  - Content-Type: application/json"
+echo "  - Accept: application/json"
+echo "  - URL: $FULL_URL"
+
+curl -v \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
-  "$FULL_URL" > "$OUTPUT_FILE"
+  "$FULL_URL" > "$OUTPUT_FILE" 2>/tmp/curl_debug.log
+
+CURL_EXIT_CODE=$?
+echo "🔍 Curl terminó con código: $CURL_EXIT_CODE"
+
+if [ $CURL_EXIT_CODE -ne 0 ]; then
+  echo "❌ ERROR: Curl falló con código $CURL_EXIT_CODE"
+  echo "📋 Debug de curl:"
+  cat /tmp/curl_debug.log
+  exit 1
+fi
 
 # Verificar el resultado
 echo ""
