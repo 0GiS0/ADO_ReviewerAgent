@@ -110,3 +110,110 @@ steps:
       echo "✅ Pipeline completada exitosamente"
       echo "📁 El diff está disponible en los artefactos como 'pr-diff'"
     displayName: ✅ Completado
+
+  - bash: |
+      echo "🔍 Obteniendo diferencias usando Azure DevOps API REST..."
+      
+      # Extraer información del repositorio fuente
+      SOURCE_REPO_URI="$(System.PullRequest.SourceRepositoryUri)"
+      echo "URI original: $SOURCE_REPO_URI"
+      
+      # Remover el protocolo https:// y el usuario existente
+      TEMP_URI=$(echo $SOURCE_REPO_URI | sed 's|https://[^@]*@||')
+      echo "URI procesada: $TEMP_URI"
+      
+      # Obtener la organización
+      ORG=$(echo $TEMP_URI | awk -F'/' '{print $2}')
+      echo "  - ORGANIZATION: $ORG"
+      
+      # Obtener el proyecto (decodificar %20 a espacios)
+      PROJECT=$(echo $TEMP_URI | awk -F'/' '{print $3}' | sed 's/%20/ /g')
+      echo "  - PROJECT: $PROJECT"
+      
+      # Obtener el repositorio
+      REPO=$(echo $TEMP_URI | awk -F'/' '{print $5}')
+      echo "  - REPOSITORY: $REPO"
+
+      # Obtener las ramas (limpiar prefijos refs/heads/ si existen)
+      SOURCE_BRANCH="$(System.PullRequest.SourceBranch)"
+      TARGET_BRANCH="$(System.PullRequest.TargetBranch)"
+      SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
+      TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
+      
+      echo "  - SOURCE BRANCH: $SOURCE_BRANCH_CLEAN"
+      echo "  - TARGET BRANCH: $TARGET_BRANCH_CLEAN"
+      
+      # Codificar el proyecto para la URL
+      PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
+      
+      # Construir la URL de la API
+      API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/diffs/commits"
+      echo "  - API URL: $API_URL"
+      
+      # Parámetros de la API
+      PARAMS="baseVersion=$TARGET_BRANCH_CLEAN&targetVersion=$SOURCE_BRANCH_CLEAN&api-version=7.1-preview.1"
+      FULL_URL="$API_URL?$PARAMS"
+      echo "  - FULL URL: $FULL_URL"
+      
+      echo ""
+      echo "🌐 Llamando a Azure DevOps API..."
+      
+      # Realizar la llamada a la API usando curl
+      curl -s \
+        -H "Authorization: Basic $(echo -n ":$(AZURE_DEVOPS_EXT_PAT)" | base64)" \
+        -H "Content-Type: application/json" \
+        "$FULL_URL" > "$(DIFF_OUTPUT).json" || { echo "❌ ERROR: Falló la llamada a la API"; exit 1; }
+      
+      echo "✅ Respuesta de la API guardada en: $(DIFF_OUTPUT).json"
+      
+      # Convertir la respuesta JSON a formato diff legible
+      echo ""
+      echo "📝 Procesando respuesta de la API..."
+      
+      # Extraer información básica del diff
+      echo "📊 Resumen del diff:" > "$(DIFF_OUTPUT)"
+      echo "Comparando: $TARGET_BRANCH_CLEAN -> $SOURCE_BRANCH_CLEAN" >> "$(DIFF_OUTPUT)"
+      echo "Fecha: $(date)" >> "$(DIFF_OUTPUT)"
+      echo "" >> "$(DIFF_OUTPUT)"
+      
+      # Mostrar archivos cambiados si están disponibles
+      if command -v jq &> /dev/null; then
+        echo "📁 Archivos modificados:" >> "$(DIFF_OUTPUT)"
+        jq -r '.changes[]?.item?.path // empty' "$(DIFF_OUTPUT).json" | sort | uniq >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los archivos modificados" >> "$(DIFF_OUTPUT)"
+        echo "" >> "$(DIFF_OUTPUT)"
+        
+        echo "🔍 Detalles de los cambios:" >> "$(DIFF_OUTPUT)"
+        jq -r '.changes[]? | "Archivo: \(.item.path // "unknown")\nTipo de cambio: \(.changeType // "unknown")\n"' "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)" 2>/dev/null || echo "No se pudieron extraer los detalles de cambios" >> "$(DIFF_OUTPUT)"
+      else
+        echo "⚠️  jq no está disponible, guardando respuesta JSON completa" >> "$(DIFF_OUTPUT)"
+        cat "$(DIFF_OUTPUT).json" >> "$(DIFF_OUTPUT)"
+      fi
+      
+      echo ""
+      echo "✅ Diff procesado y guardado en: $(DIFF_OUTPUT)"
+      
+    displayName: 🌐 Obtener Diferencias usando API REST
+
+  - bash: |
+      echo "📄 Resumen del análisis:"
+      echo "  - Archivo JSON de la API: $(DIFF_OUTPUT).json"
+      echo "  - Archivo de diferencias procesado: $(DIFF_OUTPUT)"
+      
+      if [ -f "$(DIFF_OUTPUT)" ]; then
+        echo "  - Tamaño del diff: $(du -h "$(DIFF_OUTPUT)" | cut -f1)"
+        echo "  - Líneas: $(wc -l < "$(DIFF_OUTPUT)")"
+        echo "✅ Diff generado correctamente usando API REST"
+        
+        echo ""
+        echo "📋 Primeras líneas del diff:"
+        head -20 "$(DIFF_OUTPUT)"
+      else
+        echo "❌ ERROR: No se generó el archivo de diferencias"
+        exit 1
+      fi
+      
+      if [ -f "$(DIFF_OUTPUT).json" ]; then
+        echo ""
+        echo "📊 Tamaño de la respuesta JSON: $(du -h "$(DIFF_OUTPUT).json" | cut -f1)"
+      fi
+    displayName: 📄 Mostrar Resumen de API
