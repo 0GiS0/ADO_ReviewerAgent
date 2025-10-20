@@ -62,8 +62,8 @@ steps:
 
   - bash: |
       if ! command -v copilot &> /dev/null; then
-        echo "Installing @github/copilot..."
-        npm install -g @github/copilot
+        echo "Installing @github/copilot@$(COPILOT_VERSION)..."
+        npm install -g @github/copilot@$(COPILOT_VERSION)
       else
         echo "✅ @github/copilot already installed (from cache)"
         copilot --version
