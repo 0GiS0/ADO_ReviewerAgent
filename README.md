@@ -241,7 +241,7 @@ PR_ID="123"                     # ID de la PR
 
 **Beneficio:** Los usuarios pueden descargar y revisar el análisis completo desde Azure Pipelines
 
-## � Cómo Funciona el Pipeline - Paso a Paso
+## 📝 Cómo Funciona el Pipeline - Paso a Paso
 
 El pipeline ejecuta los siguientes pasos de forma automática cuando se crea o actualiza una PR:
 
