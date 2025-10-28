@@ -1,92 +1,92 @@
 #!/bin/bash
 
-# Script parametrizado para obtener diferencias de PR usando Azure DevOps API
-# Uso: ./get-pr-diff.sh <SOURCE_REPO_URI> <SOURCE_BRANCH> <TARGET_BRANCH> <PAT> <OUTPUT_FILE>
+# Parameterized script to get PR differences using Azure DevOps API
+# Usage: ./get-pr-diff.sh <SOURCE_REPO_URI> <SOURCE_BRANCH> <TARGET_BRANCH> <PAT> <OUTPUT_FILE>
 
-echo "🌐 Obtener diferencias de PR usando Azure DevOps API"
-echo "==================================================="
+echo "🌐 Get PR Differences using Azure DevOps API"
+echo "=============================================="
 
-# Verificar parámetros
+# Verify parameters
 if [ $# -ne 5 ]; then
-    echo "❌ ERROR: Número incorrecto de parámetros"
-    echo "Uso: $0 <SOURCE_REPO_URI> <SOURCE_BRANCH> <TARGET_BRANCH> <PAT> <OUTPUT_FILE>"
+    echo "❌ ERROR: Incorrect number of parameters"
+    echo "Usage: $0 <SOURCE_REPO_URI> <SOURCE_BRANCH> <TARGET_BRANCH> <PAT> <OUTPUT_FILE>"
     echo ""
-    echo "Ejemplo:"
+    echo "Example:"
     echo "$0 'https://user@dev.azure.com/org/project/_git/repo' 'refs/heads/feature' 'refs/heads/main' 'your-pat' '/path/to/output.json'"
     exit 1
 fi
 
-# Asignar parámetros
+# Assign parameters
 SOURCE_REPO_URI="$1"
 SOURCE_BRANCH="$2"
 TARGET_BRANCH="$3"
 PAT="$4"
 OUTPUT_FILE="$5"
 
-echo "📋 Información del PR:"
+echo "📋 PR Information:"
 echo "  - Repository URI: $SOURCE_REPO_URI"
 echo "  - Source Branch: $SOURCE_BRANCH"
 echo "  - Target Branch: $TARGET_BRANCH"
 echo "  - Output File: $OUTPUT_FILE"
 echo ""
 
-# Extraer información del repositorio
-echo "🔍 Procesando URI del repositorio..."
+# Extract repository information
+echo "🔍 Processing repository URI..."
 TEMP_URI=$(echo $SOURCE_REPO_URI | sed 's|https://[^@]*@||')
-echo "URI procesada: $TEMP_URI"
+echo "Processed URI: $TEMP_URI"
 
-# Obtener la organización
+# Get the organization
 ORG=$(echo $TEMP_URI | awk -F'/' '{print $2}')
 echo "  - ORGANIZATION: $ORG"
 
-# Obtener el proyecto (decodificar %20 a espacios)
+# Get the project (decode %20 to spaces)
 PROJECT=$(echo $TEMP_URI | awk -F'/' '{print $3}' | sed 's/%20/ /g')
 echo "  - PROJECT: $PROJECT"
 
-# Obtener el repositorio
+# Get the repository
 REPO=$(echo $TEMP_URI | awk -F'/' '{print $5}')
 echo "  - REPOSITORY: $REPO"
 
-# Limpiar prefijos refs/heads/ si existen
+# Clean refs/heads/ prefixes if they exist
 SOURCE_BRANCH_CLEAN=$(echo "$SOURCE_BRANCH" | sed 's|refs/heads/||')
 TARGET_BRANCH_CLEAN=$(echo "$TARGET_BRANCH" | sed 's|refs/heads/||')
 
 echo "  - SOURCE BRANCH: $SOURCE_BRANCH_CLEAN"
 echo "  - TARGET BRANCH: $TARGET_BRANCH_CLEAN"
 
-# Codificar el proyecto para la URL
+# Encode project for URL
 PROJECT_ENCODED=$(echo "$PROJECT" | sed 's/ /%20/g')
 
-# Construir la URL de la API
+# Build API URL
 API_URL="https://dev.azure.com/$ORG/$PROJECT_ENCODED/_apis/git/repositories/$REPO/diffs/commits"
 echo "  - API URL: $API_URL"
 
-# Parámetros de la API
+# API parameters
 PARAMS="baseVersion=$TARGET_BRANCH_CLEAN&targetVersion=$SOURCE_BRANCH_CLEAN&baseVersionType=branch&targetVersionType=branch&api-version=7.2-preview.1"
 FULL_URL="$API_URL?$PARAMS"
 echo "  - FULL URL: $FULL_URL"
 
 echo ""
-echo "🌐 Realizando llamada a la API..."
+echo "🌐 Making API call..."
 
-# Generar el header de autenticación Basic
+# Generate Basic authentication header
 echo "🔍 Debug PAT info:"
 echo "  - PAT length: ${#PAT}"
 echo "  - PAT first 4 chars: ${PAT:0:4}..."
 echo "  - PAT last 4 chars: ...${PAT: -4}"
 
 AUTH_HEADER=$(printf "%s:" "$PAT" | base64 -w 0)
-echo "🔑 Header de autenticación generado (length: ${#AUTH_HEADER})"
+echo "🔑 Authentication header generated (length: ${#AUTH_HEADER})"
 
-# Realizar la llamada a la API
-echo "📡 Ejecutando curl..."
-echo "🔍 Debug curl - Headers y URL:"
+# Make API call
+echo "📡 Executing curl..."
+echo "🔍 Debug curl - Headers and URL:"
 echo "  - Authorization: Basic [HEADER_HIDDEN]"
 echo "  - Content-Type: application/json"
 echo "  - Accept: application/json"
 echo "  - URL: $FULL_URL"
 
-# Separar la salida de curl: JSON va al archivo, debug va a un log separado
+# Separate curl output: JSON goes to file, debug goes to separate log
 curl -v \
   -H "Authorization: Basic $AUTH_HEADER" \
   -H "Content-Type: application/json" \
@@ -97,76 +97,76 @@ curl -v \
   2> /tmp/curl_debug.log
 
 CURL_EXIT_CODE=$?
-echo "🔍 Curl terminó con código: $CURL_EXIT_CODE"
+echo "🔍 Curl finished with code: $CURL_EXIT_CODE"
 
 if [ $CURL_EXIT_CODE -ne 0 ]; then
-  echo "❌ ERROR: Curl falló con código $CURL_EXIT_CODE"
-  echo "📋 Debug de curl:"
+  echo "❌ ERROR: Curl failed with code $CURL_EXIT_CODE"
+  echo "📋 Curl debug:"
   cat /tmp/curl_debug.log
   exit 1
 fi
 
-# Verificar el resultado
+# Verify result
 echo ""
-echo "📄 Verificando resultado..."
+echo "📄 Verifying result..."
 
 if [ -f "$OUTPUT_FILE" ]; then
-  echo "✅ Archivo de respuesta creado: $OUTPUT_FILE"
-  echo "📊 Tamaño: $(du -h "$OUTPUT_FILE" | cut -f1)"
+  echo "✅ Response file created: $OUTPUT_FILE"
+  echo "📊 Size: $(du -h "$OUTPUT_FILE" | cut -f1)"
   
-  # Debug: Mostrar contenido del archivo
-  echo "🔍 Debug - Contenido del archivo de respuesta:"
+  # Debug: Show file content
+  echo "🔍 Debug - Response file content:"
   if [ -s "$OUTPUT_FILE" ]; then
-    echo "--- INICIO CONTENIDO ---"
+    echo "--- START CONTENT ---"
     cat "$OUTPUT_FILE"
-    echo "--- FIN CONTENIDO ---"
+    echo "--- END CONTENT ---"
   else
-    echo "⚠️  ARCHIVO VACÍO (0 bytes)"
-    echo "📋 Debug de curl completo:"
+    echo "⚠️  EMPTY FILE (0 bytes)"
+    echo "📋 Full curl debug:"
     if [ -f /tmp/curl_debug.log ]; then
       cat /tmp/curl_debug.log
     else
-      echo "No se encontró log de debug de curl"
+      echo "Curl debug log not found"
     fi
   fi
   
-  # Verificar si es JSON válido
+  # Verify valid JSON
   if command -v jq &> /dev/null; then
     if jq empty "$OUTPUT_FILE" 2>/dev/null; then
-      echo "✅ JSON válido recibido"
+      echo "✅ Valid JSON received"
       
-      # Extraer estadísticas
+      # Extract statistics
       CHANGE_COUNT=$(jq '.changes | length' "$OUTPUT_FILE" 2>/dev/null || echo 'N/A')
       ADD_COUNT=$(jq '.changeCounts.Add // 0' "$OUTPUT_FILE" 2>/dev/null || echo '0')
       EDIT_COUNT=$(jq '.changeCounts.Edit // 0' "$OUTPUT_FILE" 2>/dev/null || echo '0')
       DELETE_COUNT=$(jq '.changeCounts.Delete // 0' "$OUTPUT_FILE" 2>/dev/null || echo '0')
       
       echo ""
-      echo "📊 Estadísticas del diff:"
-      echo "  - Total de cambios: $CHANGE_COUNT"
-      echo "  - Archivos añadidos: $ADD_COUNT"
-      echo "  - Archivos editados: $EDIT_COUNT"
-      echo "  - Archivos eliminados: $DELETE_COUNT"
+      echo "📊 Diff Statistics:"
+      echo "  - Total changes: $CHANGE_COUNT"
+      echo "  - Files added: $ADD_COUNT"
+      echo "  - Files edited: $EDIT_COUNT"
+      echo "  - Files deleted: $DELETE_COUNT"
       
       echo ""
-      echo "📁 Archivos modificados:"
+      echo "📁 Modified files:"
       jq -r '.changes[]?.item?.path // empty' "$OUTPUT_FILE" 2>/dev/null | head -10
       
-      # Código de salida exitoso
+      # Successful exit code
       exit 0
       
     else
-      echo "❌ JSON inválido - mostrando contenido:"
+      echo "❌ Invalid JSON - showing content:"
       cat "$OUTPUT_FILE"
       exit 1
     fi
   else
-    echo "⚠️  jq no disponible - asumiendo respuesta válida"
-    echo "📋 Primeras líneas del archivo:"
+    echo "⚠️  jq not available - assuming valid response"
+    echo "📋 First lines of file:"
     head -5 "$OUTPUT_FILE"
     exit 0
   fi
 else
-  echo "❌ No se creó el archivo de respuesta"
+  echo "❌ Response file not created"
   exit 1
 fi
