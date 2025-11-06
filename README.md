@@ -7,7 +7,7 @@
 [![LinkedIn Follow](https://img.shields.io/badge/LinkedIn-Sígueme-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/giselatorresbuitrago/)
 [![X Follow](https://img.shields.io/badge/X-Sígueme-black?style=for-the-badge&logo=x&logoColor=white)](https://twitter.com/0GiS0)
 
-**🌍 Idiomas:** 🇪🇸 **Español** | [🇬🇧 English](README.en.md)
+**🌍 Idiomas:** 🇪🇸 **Español** | [🇬🇧 English](README.en.md) | [🇫🇷 Français](README.fr.md)
 
 </div>
 
@@ -241,7 +241,7 @@ PR_ID="123"                     # ID de la PR
 
 **Beneficio:** Los usuarios pueden descargar y revisar el análisis completo desde Azure Pipelines
 
-## � Cómo Funciona el Pipeline - Paso a Paso
+## 📝 Cómo Funciona el Pipeline - Paso a Paso
 
 El pipeline ejecuta los siguientes pasos de forma automática cuando se crea o actualiza una PR:
 
